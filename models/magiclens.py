@@ -19,8 +19,8 @@ from typing import Dict, Tuple
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
-from layers import AttenTokenPoolingLayer
-from layers import StackedTransformer
+from models.magiclens_layers import AttenTokenPoolingLayer
+from models.magiclens_layers import StackedTransformer
 from scenic.projects.baselines.clip import layers as clip_layers
 from scenic.projects.baselines.clip import model as clip_model
 
