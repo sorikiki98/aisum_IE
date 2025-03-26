@@ -13,6 +13,8 @@ from models.magiclens import MagicLens
 from data.eseltree.dataset import EselTreeDatasetForMagicLens, EselTreeDatasetDefault
 from scenic.projects.baselines.clip import tokenizer as clip_tokenizer
 from transformers import ViTModel, ViTImageProcessor
+from PIL import Image
+from io import BytesIO
 
 
 def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
@@ -40,8 +42,7 @@ def get_image_embedding_model_name():
 
 def get_device():
     device_name = "cuda" if torch.cuda.is_available() else "cpu"
-    device = torch.device(device_name)
-    return device
+    return torch.device(device_name)
 
 
 def load_image_embedding_model(image_embedding_model_name):
@@ -121,6 +122,34 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         raise ValueError(f"Invalid embedding model name: {image_embedding_model_name}")
 
     return image_embeddings_ndarray
+
+# ✅ 추가된 함수: FastAPI용 단일 이미지 임베딩
+def get_image_embedding(image_bytes, model_name):
+    device = get_device()
+    model, model_params = load_image_embedding_model(model_name)
+
+    image = Image.open(BytesIO(image_bytes)).convert("RGB")
+
+    if model_name == "ViT":
+        processor = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224-in21k')
+        inputs = processor(images=image, return_tensors="pt").to(device)
+        with torch.no_grad():
+            outputs = model(**inputs)
+        embedding = outputs.last_hidden_state[:, 0, :].squeeze().cpu().numpy()
+    else:
+        preprocess = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225]),
+        ])
+        input_tensor = preprocess(image).unsqueeze(0).to(device)
+        with torch.no_grad():
+            embedding = model(input_tensor).squeeze().cpu().numpy()
+        if embedding.ndim > 1:
+            embedding = embedding.reshape(-1)
+
+    return embedding.astype("float32")
 
 
 def get_intermediate_embeddings(model, images, target_layer):
