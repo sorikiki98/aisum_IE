@@ -28,15 +28,19 @@ def load_faiss_index(image_embedding_model_name):
 
 def get_faiss_index_file_name(image_embedding_model_name):
     if image_embedding_model_name == "ViT":
-        return "./faiss_index_ViT"
+        return "./index/faiss_index_ViT"
     elif image_embedding_model_name == "resnet152":
-        return "./faiss_index_resnet152"
+        return "./index/faiss_index_resnet152"
     elif image_embedding_model_name == "efnet":
-        return "./faiss_index_efnet"
+        return "./index/faiss_index_efnet"
     elif image_embedding_model_name == "magiclens_base":
-        return "./faiss_index_magiclens_base"
+        return "./index/faiss_index_magiclens_base"
     elif image_embedding_model_name == "magiclens_large":
-        return "./faiss_index_magiclens_large"
+        return "./index/faiss_index_magiclens_large"
+    elif image_embedding_model_name == "convnextv2_base":
+        return "./index/faiss_index_convnextv2_base"
+    elif image_embedding_model_name == "convnextv2_large":
+        return "./index/faiss_index_convnextv2_large"
     else:
         raise ValueError("Invalid embedding model name")
 

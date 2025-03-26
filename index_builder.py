@@ -17,6 +17,9 @@ if __name__ == "__main__":
     if image_embedding_model_name.startswith("magiclens"):
         image_embedding_model, params = load_image_embedding_model(image_embedding_model_name)
         dataset = EselTreeDatasetForMagicLens(dataset_name="eseltree", tokenizer=tokenizer)
+    elif image_embedding_model_name.startswith("convnextv2"):
+        image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
     elif image_embedding_model_name == 'ViT':
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         preprocess = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224-in21k')
@@ -44,6 +47,17 @@ if __name__ == "__main__":
             ]
             batch_embeddings_ndarray = jax.device_get(iembeds)
             batch_embedding_ndarray = np.ascontiguousarray(batch_embeddings_ndarray, dtype=np.float32)
+            batch_ids = np.ascontiguousarray(np.array(batch_ids), dtype=np.int64)
+        elif image_embedding_model_name.startswith("convnextv2"):
+            iimages = [i.iimage for i in batch_examples]
+            iimages = torch.stack(iimages).to(device)
+            with torch.no_grad():
+                batch_embeddings = image_embedding_model(iimages)
+            adaptive_pool = nn.AdaptiveAvgPool2d((1, 1)).to(device)
+            batch_embeddings = adaptive_pool(batch_embeddings)
+            batch_embeddings = batch_embeddings.reshape(batch_embeddings.size(0), -1)
+            print(batch_embeddings.shape)
+            batch_embeddings_ndarray = batch_embeddings.cpu().numpy()
             batch_ids = np.ascontiguousarray(np.array(batch_ids), dtype=np.int64)
         elif image_embedding_model_name == 'ViT':
             iimages = [i.iimage['pixel_values'].to(device) for i in batch_examples]

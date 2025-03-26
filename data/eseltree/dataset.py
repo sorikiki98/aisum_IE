@@ -1,7 +1,6 @@
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-import json
 from typing import Any, List, Union
 from torchvision import transforms
 from tqdm import tqdm
@@ -39,6 +38,7 @@ class Dataset:
     # write_to_file_header: Dict[str, Any] = field(default_factory=dict)
     index_examples: List[IndexExample] = field(default_factory=list)
 
+    '''
     def write_to_file(self, output_dir: str):
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
@@ -50,6 +50,7 @@ class Dataset:
         with open(output_file, "w") as f:
             json.dump(dict_to_write, f, indent=4)
         print("Results are written to file", output_file)
+    '''
 
 
 def process_img_with_jax(image_path: str, size: int) -> np.ndarray:
@@ -76,7 +77,6 @@ def process_img_to_torch(image_path: str, size: int, preprocess=None) -> torch.T
 
 class EselTreeDatasetForMagicLens(Dataset):
     def __init__(self, dataset_name: str, tokenizer: Any):
-
         self.dataset_name = dataset_name
         self.tokenizer = tokenizer
         index_image_folder = "./data/eseltree/images"  # todo
@@ -143,12 +143,12 @@ class EselTreeDatasetDefault(Dataset):
 
         self.dataset_name = dataset_name
         self.tokenizer = tokenizer
-        index_image_folder = "./data/eseltree/images"  # todo
-        index_image_files = list(Path(index_image_folder).glob("*.jpg"))  # todo
+        index_image_folder = "./data/eseltree/images"
+        index_image_files = list(Path(index_image_folder).glob("*.jpg"))
         index_image_ids = [file.stem for file in index_image_files]
 
-        query_image_folder = "./data/test/images"  # todo
-        query_image_files = list(Path(query_image_folder).glob("*.jpg"))  # todo
+        query_image_folder = "./data/test/images"
+        query_image_files = list(Path(query_image_folder).glob("*.jpg"))
         query_image_ids = [file.stem for file in query_image_files]
 
         null_tokens = tokenizer("")  # used for index example

@@ -2,6 +2,7 @@ import sys
 from image_embedding_model import *
 from vector_database import *
 from PIL import Image
+import shutil
 
 
 def find_similar_product_ids(image_embedding_model,
@@ -20,13 +21,15 @@ def find_similar_product_ids(image_embedding_model,
 
 def save_retrieved_images_by_ids(image_embedding_model_name, ids, similarities):
     for i, ids_per_one_query in enumerate(ids):
+        retrieved_image_folder = f"./outputs/{image_embedding_model_name}/9"
+        if os.path.exists(retrieved_image_folder):
+            shutil.rmtree(retrieved_image_folder)
+        os.makedirs(retrieved_image_folder, exist_ok=True)
         for j, image_id in enumerate(ids_per_one_query):
-            retrieved_image_folder = f"./outputs/{image_embedding_model_name}"
-            os.makedirs(retrieved_image_folder, exist_ok=True)
             file_path = os.path.join('./data/eseltree/images', str(image_id) + '.jpg')
             if os.path.exists(file_path):
                 image = Image.open(file_path)
-                save_path = os.path.join(retrieved_image_folder, f"top_{j+1}_{similarities[i][j]}.jpg")
+                save_path = os.path.join(retrieved_image_folder, f"top_{j + 1}_{similarities[i][j]}.jpg")
                 image.save(save_path)
 
 

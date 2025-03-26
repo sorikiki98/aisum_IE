@@ -12,14 +12,14 @@ db_config = {
     "write_timeout": 300,
     "connect_timeout": 300,
 }
-save_dir = "images"
+save_dir = "./data/eseltree/test/images"
 os.makedirs(save_dir, exist_ok=True)
 try:
     # MySQL 연결
     connection = pymysql.connect(**db_config)
     cursor = connection.cursor()
     # img_url 가져오기
-    cursor.execute("SELECT img_url FROM piclick.product_list2 WHERE au_id = 6318 AND site_id = 2775")
+    cursor.execute("SELECT org_img_url, r_url, r_title FROM piclick.pm_test_content_list pl WHERE pl.status IN (9,10)")
     img_urls = [row[0] for row in cursor.fetchall()]
     for i, url in enumerate(img_urls):
         try:
