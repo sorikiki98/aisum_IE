@@ -20,6 +20,7 @@ DB_CONFIG = {
     "port": "5432",
 }
 
+
 def connect_db():
     try:
         return psycopg2.connect(**DB_CONFIG)
@@ -27,13 +28,14 @@ def connect_db():
         print(f"Error connecting to database: {e}")
         raise
 
+
 def create_table(image_embedding_model_name):
     table_name = f"image_embeddings_{image_embedding_model_name}"
     num_dimensions = get_num_dimensions_of_image_embedding_model(image_embedding_model_name)
-    
+
     conn = connect_db()
     cur = conn.cursor()
-    
+
     try:
         cur.execute(f"""
             CREATE TABLE IF NOT EXISTS {table_name} (
@@ -51,9 +53,10 @@ def create_table(image_embedding_model_name):
         cur.close()
         conn.close()
 
+
 def insert_embeddings(image_embedding_model_name, ids, image_embeddings, category1, category2, batch_size):
     table_name = f"image_embeddings_{image_embedding_model_name}"
-    
+
     conn = connect_db()
     cur = conn.cursor()
 
@@ -82,12 +85,12 @@ def insert_embeddings(image_embedding_model_name, ids, image_embeddings, categor
 
 def create_index(image_embedding_model_name):
     table_name = f"image_embeddings_{image_embedding_model_name}"
-    
+
     conn = connect_db()
     cur = conn.cursor()
 
     try:
-        cur = conn.cursor() 
+        cur = conn.cursor()
         index_query = f"""
             CREATE INDEX IF NOT EXISTS hnsw_idx_{image_embedding_model_name}
             ON "{table_name}" USING hnsw (embedding vector_cosine_ops)
@@ -143,13 +146,13 @@ def print_pgvector_info(image_embedding_model_name):
 
     cur.execute(f"SELECT COUNT(*) FROM {table_name};")
     row_count = cur.fetchone()[0]
-    
+
     cur.execute(f"SELECT COUNT(DISTINCT id) FROM {table_name};")
     unique_id_count = cur.fetchone()[0]
-    
+
     cur.execute(f"SELECT MIN(id), MAX(id) FROM {table_name};")
     min_id, max_id = cur.fetchone()
-    
+
     print("--- pgvector table information ---")
     print(f"Table: {table_name}")
     print(f"Row count (total records): {row_count}")
@@ -157,11 +160,13 @@ def print_pgvector_info(image_embedding_model_name):
     print(f"Min ID: {min_id}")
     print(f"Max ID: {max_id}")
     print("-------------------------------")
-    
+
     cur.close()
     conn.close()
 
-def insert_image_embeddings_into_postgres(image_embedding_model_name, batch_ids, image_embeddings, category1, category2, batch_size):
+
+def insert_image_embeddings_into_postgres(image_embedding_model_name, batch_ids, image_embeddings, category1, category2,
+                                          batch_size):
     create_table(image_embedding_model_name)
     create_index(image_embedding_model_name)
     insert_embeddings(image_embedding_model_name, batch_ids, image_embeddings, category1, category2, batch_size)
@@ -169,9 +174,8 @@ def insert_image_embeddings_into_postgres(image_embedding_model_name, batch_ids,
 
 
 def search_similar_vectors(image_embedding_model_name, query_embeddings, category1, category2):
-
     table_name = f"image_embeddings_{image_embedding_model_name}"
-    
+
     conn = connect_db()
     cur = conn.cursor()
 
@@ -182,20 +186,20 @@ def search_similar_vectors(image_embedding_model_name, query_embeddings, categor
         FROM {table_name}
     """
 
-    ids = []
+    all_ids = []
     cat1s = []
     cat2s = []
-    distances = []
+    all_distances = []
 
     for idx, query_embedding in enumerate(query_embeddings):
         if category1 is None or category2 is None:
             query = select_clause + "ORDER BY distance ASC LIMIT 10;"
             params = (query_embedding.tolist(),)
-            label = f"🔎 [전체 검색] - Query #{idx+1}"
+            label = f"🔎 [전체 검색] - Query #{idx + 1}"
         else:
             query = select_clause + "WHERE category1 = %s AND category2 = %s ORDER BY distance ASC LIMIT 10;"
             params = (query_embedding.tolist(), category1, category2)
-            label = f"🔍 [카테고리 필터 검색] - Query #{idx+1}"
+            label = f"🔍 [카테고리 필터 검색] - Query #{idx + 1}"
 
         start_time = time.perf_counter()
         cur.execute(query, params)
@@ -203,8 +207,8 @@ def search_similar_vectors(image_embedding_model_name, query_embeddings, categor
         end_time = time.perf_counter()
 
         print(f"\n{label} Top 10 (by distance)")
-        for idx, (id_, cat1, cat2, dist) in enumerate(results):
-            print(f"{idx+1}. ID: {id_}, Cat1: {cat1}, Cat2: {cat2}, Distance: {dist:.6f}")
+        for i, (id_, cat1, cat2, dist) in enumerate(results):
+            print(f"{i + 1}. ID: {id_}, Cat1: {cat1}, Cat2: {cat2}, Distance: {dist:.6f}")
         print(f"⏱️ 검색 소요 시간: {end_time - start_time:.4f}초")
 
         """
@@ -214,13 +218,14 @@ def search_similar_vectors(image_embedding_model_name, query_embeddings, categor
         for line in plan:
             print(line[0])
         """
-
         ids = [row[0] for row in results]
+        all_ids.append(ids)
         category1s = [row[1] for row in results]
         category2s = [row[2] for row in results]
         distances = [row[3] for row in results]
-        
+        all_distances.append(distances)
+
     cur.close()
     conn.close()
 
-    return ids, category1s, category2s, distances
+    return all_ids, category1s, category2s, all_distances
