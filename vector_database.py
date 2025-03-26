@@ -41,6 +41,8 @@ def get_faiss_index_file_name(image_embedding_model_name):
         return "./index/faiss_index_convnextv2_base"
     elif image_embedding_model_name == "convnextv2_large":
         return "./index/faiss_index_convnextv2_large"
+    elif image_embedding_model_name == "resnext101":
+        return "./index/faiss_index_resnext101"
     else:
         raise ValueError("Invalid embedding model name")
 

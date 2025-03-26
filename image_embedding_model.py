@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 
-from torchvision import models, transforms
+from torchvision import models
 import torch
 import torch.nn as nn
 import numpy as np
@@ -10,6 +10,7 @@ import timm
 
 from flax import serialization
 from models.resnet import ResNet152
+from models.resnext import ResNext101
 from models.magiclens import MagicLens
 from data.eseltree.dataset import EselTreeDatasetForMagicLens, EselTreeDatasetDefault
 from scenic.projects.baselines.clip import tokenizer as clip_tokenizer
@@ -19,7 +20,7 @@ from transformers import ViTModel, ViTImageProcessor
 def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
     if image_embedding_model_name == "ViT":
         return 768
-    elif image_embedding_model_name == "resnet152":
+    elif image_embedding_model_name == "resnet152" or image_embedding_model_name == "resnext101":
         return 2048
     elif image_embedding_model_name == "efnet":
         return 1000
@@ -39,11 +40,12 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
 
 def get_image_embedding_model_name():
     image_embedding_model_name = input("Enter embedding model name (ViT, resnet152, efnet, magiclens_base, "
-                                       "magiclens_large, convnextv2_small, convnextv2_base, convnextv2_large): ")
+                                       "magiclens_large, convnextv2_small, convnextv2_base, convnextv2_large, "
+                                       "resnext101): ")
     print(image_embedding_model_name)
     if image_embedding_model_name not in ["ViT", "efnet", "resnet152", "magiclens_base", "magiclens_large",
-                                          "convnextv2_small",
-                                          "convnextv2_base", "convnextv2_large"]:
+                                          "convnextv2_small", "convnextv2_base", "convnextv2_large",
+                                          "resnext101"]:
         raise ValueError("Invalid embedding model name")
     return image_embedding_model_name
 
@@ -108,6 +110,12 @@ def load_image_embedding_model(image_embedding_model_name):
         model.to(device)
         model.eval()
         return model, None
+    elif image_embedding_model_name == "resnext101":
+        model = ResNext101()
+        device = get_device()
+        model.to(device)
+        model.eval()
+        return model, None
 
 
 def embed_images(image_embedding_model, image_embedding_model_name, model_params=None):
@@ -123,7 +131,7 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
             "multimodal_embed_norm"
         ]
         image_embeddings_ndarray = np.array(qembeds)
-    elif image_embedding_model_name == "resnet152" or image_embedding_model_name == "efnet":
+    elif image_embedding_model_name == "resnet152" or image_embedding_model_name == "resnext101" or image_embedding_model_name == "efnet":
         tokenizer = clip_tokenizer.build_tokenizer()
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
         query_ids = dataset.query_image_ids
