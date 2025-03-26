@@ -4,6 +4,17 @@ from data.eseltree.dataset import EselTreeDatasetForMagicLens, EselTreeDatasetDe
 from scenic.projects.baselines.clip import tokenizer as clip_tokenizer
 from vector_database import load_or_create_faiss_index, insert_image_embeddings_into_faiss_index, \
     save_faiss_index_to_disk, print_faiss_index_info
+from pgvector_database import *
+from pathlib import Path
+
+def extract_last_two_categories(path_str):
+    parts = Path(path_str).parts
+    if len(parts) >= 2:
+        return parts[-2], parts[-1]
+    elif len(parts) == 1:
+        return None, parts[-1]  # category1 없음
+    else:
+        return None, None
 
 if __name__ == "__main__":
     image_embedding_model_name = get_image_embedding_model_name()
@@ -17,16 +28,20 @@ if __name__ == "__main__":
     if image_embedding_model_name.startswith("magiclens"):
         image_embedding_model, params = load_image_embedding_model(image_embedding_model_name)
         dataset = EselTreeDatasetForMagicLens(dataset_name="eseltree", tokenizer=tokenizer)
+        category1, category2 = extract_last_two_categories(dataset.index_image_folder)
     elif image_embedding_model_name.startswith("convnextv2"):
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
+        category1, category2 = extract_last_two_categories(dataset.index_image_folder)
     elif image_embedding_model_name == 'ViT':
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         preprocess = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224-in21k')
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+        category1, category2 = extract_last_two_categories(dataset.index_image_folder)
     else:
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
+        category1, category2 = extract_last_two_categories(dataset.index_image_folder)
 
     len_index_examples = len(dataset.index_image_ids)
     total_batches = len_index_examples // batch_size + (1 if len_index_examples % batch_size > 0 else 0)
@@ -74,6 +89,8 @@ if __name__ == "__main__":
                 batch_embeddings = image_embedding_model(iimages)
             batch_embeddings_ndarray = batch_embeddings.cpu().numpy()
             batch_ids = np.ascontiguousarray(np.array(batch_ids), dtype=np.int64)
-        insert_image_embeddings_into_faiss_index(faiss_index_with_ids, batch_embeddings_ndarray, batch_ids)
-        save_faiss_index_to_disk(faiss_index_with_ids, image_embedding_model_name)
-        print_faiss_index_info(faiss_index_with_ids)
+        #insert_image_embeddings_into_faiss_index(faiss_index_with_ids, batch_embeddings_ndarray, batch_ids)
+        #save_faiss_index_to_disk(faiss_index_with_ids, image_embedding_model_name)
+        #print_faiss_index_info(faiss_index_with_ids)
+
+        insert_image_embeddings_into_postgres(image_embedding_model_name, batch_ids, batch_embeddings_ndarray, category1, category2, batch_size)
