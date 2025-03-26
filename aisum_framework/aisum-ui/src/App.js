@@ -5,45 +5,43 @@ function App() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewURL, setPreviewURL] = useState(null);
   const [resultImages, setResultImages] = useState([]);
-  const [model, setModel] = useState('resnet');
+  const [model, setModel] = useState('resnet152');
+  const [category1, setCategory1] = useState("");
+  const [category2, setCategory2] = useState("");
 
-  // 이미지 선택 시
   const handleFileChange = (event) => {
     const file = event.target.files[0];
     setSelectedFile(file);
     setPreviewURL(URL.createObjectURL(file));
   };
 
-  // FastAPI에 전송하여 임베딩 요청
   const handleEmbed = async () => {
     if (!selectedFile) return;
-  
+
     const formData = new FormData();
     formData.append("file", selectedFile);
     formData.append("model_name", model);
-  
+    formData.append("category1", category1);
+    formData.append("category2", category2);
+
     try {
       const response = await axios.post("http://127.0.0.1:8000/embed/", formData);
-  
       const imagePaths = response.data.similar_images;
-  
-      // FastAPI는 상대경로 주므로, 절대경로로 변환
       const fullUrls = imagePaths.map(
         (path) => `http://127.0.0.1:8000/${path.replace(/\\/g, "/")}`
       );
-  
-      setResultImages(fullUrls); // 이제 resultImages는 이미지 URL 배열
+      setResultImages(fullUrls);
     } catch (error) {
       alert("에러 발생: " + error.message);
     }
   };
-  
 
-  // 리셋 버튼 누르면 초기화
   const handleReset = () => {
     setSelectedFile(null);
     setPreviewURL(null);
     setResultImages([]);
+    setCategory1("");
+    setCategory2("");
   };
 
   return (
@@ -68,6 +66,22 @@ function App() {
             style={{ marginBottom: '20px' }}
           />
 
+          {/* 카테고리 입력 */}
+          <input
+            type="text"
+            placeholder="Category 1"
+            value={category1}
+            onChange={(e) => setCategory1(e.target.value)}
+            style={{ marginBottom: '10px', width: '100%' }}
+          />
+          <input
+            type="text"
+            placeholder="Category 2"
+            value={category2}
+            onChange={(e) => setCategory2(e.target.value)}
+            style={{ marginBottom: '20px', width: '100%' }}
+          />
+
           {/* 모델 선택 + 실행 + 리셋 */}
           <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
             <select value={model} onChange={(e) => setModel(e.target.value)}>
@@ -83,7 +97,7 @@ function App() {
           </div>
         </div>
 
-        {/* 미리보기 이미지 (아래 고정) */}
+        {/* 미리보기 이미지 */}
         {previewURL && (
           <div>
             <p style={{ marginTop: '30px' }}>미리보기</p>
@@ -101,31 +115,31 @@ function App() {
         )}
       </div>
 
-      {/* 오른쪽: 결과 이미지들 */}
+      {/* 오른쪽: 결과 이미지 */}
       <div style={{ flex: 1, padding: '20px', overflowY: 'auto' }}>
         <h3>처리된 결과 이미지</h3>
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "15px",
-              marginTop: "15px",
-            }}
-          >
-            {resultImages.map((url, index) => (
-              <img
-                key={index}
-                src={url}
-                alt={`결과 ${index + 1}`}
-                style={{
-                  width: "200px",
-                  height: "200px",
-                  objectFit: "cover",
-                  border: "2px solid green",
-                }}
-              />
-            ))}
-          </div>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "15px",
+            marginTop: "15px",
+          }}
+        >
+          {resultImages.map((url, index) => (
+            <img
+              key={index}
+              src={url}
+              alt={`결과 ${index + 1}`}
+              style={{
+                width: "200px",
+                height: "200px",
+                objectFit: "cover",
+                border: "2px solid green",
+              }}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
