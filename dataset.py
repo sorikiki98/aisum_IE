@@ -21,6 +21,9 @@ class QueryExample:
     target_iid: Union[int, str, List[int], List[str], None]  # can be int or
     retrieved_iids: List[Union[int, str]]  # ranked by score, can be str (cirr) or int (circo)
     retrieved_scores: List[float]  # ranked by order
+    # todo: server 연동 시, 아래 코드 사용
+    # category1_code: str
+    # category2_code: str
 
 
 @dataclass
@@ -28,6 +31,8 @@ class IndexExample:
     iid: Union[int, str]
     iimage: Union[np.ndarray, torch.Tensor, dict]
     itokens: np.ndarray
+    category1_code: str
+    category2_code: str
 
 
 @dataclass
@@ -79,12 +84,13 @@ class EselTreeDatasetForMagicLens(Dataset):
     def __init__(self, dataset_name: str, tokenizer: Any):
         self.dataset_name = dataset_name
         self.tokenizer = tokenizer
-        index_image_folder = "./data/eseltree/images"  # todo
-        index_image_files = list(Path(index_image_folder).glob("*.jpg"))  # todo
+        index_image_folder = "./data/eseltree/images"
+        index_image_files = sorted(Path(index_image_folder).glob("**/*.jpg"))
+        index_image_ids_with_cats = [str(file).split(".")[0] for file in index_image_files]
         index_image_ids = [file.stem for file in index_image_files]
 
-        query_image_folder = "./data/test/images"  # todo
-        query_image_files = list(Path(query_image_folder).glob("*.jpg"))  # todo
+        query_image_folder = "./data/test/images"
+        query_image_files = sorted(Path(query_image_folder).glob("*.jpg"))
         query_image_ids = [file.stem for file in query_image_files]
 
         null_tokens = tokenizer("")  # used for index example
@@ -92,6 +98,7 @@ class EselTreeDatasetForMagicLens(Dataset):
 
         self.index_image_folder = index_image_folder
         self.index_image_files = index_image_files
+        self.index_image_ids_with_cats = index_image_ids_with_cats
         self.index_image_ids = index_image_ids
         self.query_image_folder = query_image_folder
         self.query_image_files = query_image_files
@@ -124,12 +131,20 @@ class EselTreeDatasetForMagicLens(Dataset):
                     progress.update(1)
         return query_examples
 
-    def _process_index_example(self, index_img_id):
-        img_path = os.path.join(self.index_image_folder, index_img_id + ".jpg")
+    def _process_index_example(self, index_img_id):  # cat1/cat2/img_id.jpg
+        cat1_code = index_img_id.split(os.sep)[-3]
+        cat2_code = index_img_id.split(os.sep)[-2]
+        img_id = index_img_id.split(os.sep)[-1]
+        img_path = os.path.join(self.index_image_folder, cat1_code, cat2_code, img_id + ".jpg")
         ima = process_img_with_jax(img_path, 224)
-        return IndexExample(iid=index_img_id, iimage=ima, itokens=self.null_tokens)
+        return IndexExample(iid=index_img_id, iimage=ima, itokens=self.null_tokens, category1_code=cat1_code,
+                            category2_code=cat2_code)
 
     def _process_query_example(self, query_img_id):
+        # todo: server 연동 시, 아래 코드 사용
+        # cat1_code = query_img_id.split(os.sep)[-3]
+        # cat2_code = query_img_id.split(os.sep)[-2]
+        # img_id = query_img_id.split(os.sep)[-1]
         qtext = ""
         qimage_path = os.path.join(self.query_image_folder, query_img_id + ".jpg")
         ima = process_img_with_jax(qimage_path, 224)
@@ -143,12 +158,13 @@ class EselTreeDatasetDefault(Dataset):
 
         self.dataset_name = dataset_name
         self.tokenizer = tokenizer
-        index_image_folder = "./data/eseltree/images"
-        index_image_files = list(Path(index_image_folder).glob("*.jpg"))
+        index_image_folder = "./data/eseltree/images"  # todo
+        index_image_files = sorted(Path(index_image_folder).glob("**/*.jpg"))
+        index_image_ids_with_cats = [str(file).split(".")[0] for file in index_image_files]
         index_image_ids = [file.stem for file in index_image_files]
 
-        query_image_folder = "./data/test/images"
-        query_image_files = list(Path(query_image_folder).glob("*.jpg"))
+        query_image_folder = "./data/test/images"  # todo
+        query_image_files = sorted(Path(query_image_folder).glob("*.jpg"))
         query_image_ids = [file.stem for file in query_image_files]
 
         null_tokens = tokenizer("")  # used for index example
@@ -157,6 +173,7 @@ class EselTreeDatasetDefault(Dataset):
         self.index_image_folder = index_image_folder
         self.index_image_files = index_image_files
         self.index_image_ids = index_image_ids
+        self.index_image_ids_with_cats = index_image_ids_with_cats
         self.query_image_folder = query_image_folder
         self.query_image_files = query_image_files
         self.query_image_ids = query_image_ids
@@ -166,8 +183,8 @@ class EselTreeDatasetDefault(Dataset):
     def prepare_index_examples(self, index_image_ids) -> List[IndexExample]:
         index_examples = []
         with ThreadPoolExecutor() as executor:
-            index_example_futures = {executor.submit(self._process_index_example, index_img_id, self.preprocess):
-                                         index_img_id for index_img_id in index_image_ids}
+            index_example_futures = {executor.submit(self._process_index_example, index_img_id): index_img_id for
+                                     index_img_id in index_image_ids}
 
             with tqdm(total=len(index_image_ids), desc="Index examples") as progress:
                 for future in as_completed(index_example_futures):
@@ -180,8 +197,7 @@ class EselTreeDatasetDefault(Dataset):
         query_examples = []
         with ThreadPoolExecutor() as executor:
             query_futures = {executor.submit(self._process_query_example, query_img_id, self.preprocess): query_img_id
-                             for
-                             query_img_id in query_image_ids}
+                             for query_img_id in query_image_ids}
 
             with tqdm(total=len(query_image_ids), desc="Query examples") as progress:
                 for future in as_completed(query_futures):
@@ -190,12 +206,20 @@ class EselTreeDatasetDefault(Dataset):
                     progress.update(1)
         return query_examples
 
-    def _process_index_example(self, index_img_id, preprocess=None):
-        img_path = os.path.join(self.index_image_folder, index_img_id + ".jpg")
-        ima = process_img_to_torch(img_path, 224, preprocess)
-        return IndexExample(iid=index_img_id, iimage=ima, itokens=self.null_tokens)
+    def _process_index_example(self, index_img_id):  # cat1/cat2/img_id.jpg
+        cat1_code = index_img_id.split(os.sep)[-3]
+        cat2_code = index_img_id.split(os.sep)[-2]
+        img_id = index_img_id.split(os.sep)[-1]
+        img_path = os.path.join(self.index_image_folder, cat1_code, cat2_code, img_id + ".jpg")
+        ima = process_img_to_torch(img_path, 224)
+        return IndexExample(iid=index_img_id, iimage=ima, itokens=self.null_tokens, category1_code=cat1_code,
+                            category2_code=cat2_code)
 
-    def _process_query_example(self, query_img_id, preprocess=None):
+    def _process_query_example(self, query_img_id, preprocess=None):  # cat1/cat2/img_id.jpg
+        # todo: server 연동 시, 아래 코드 사용
+        # cat1_code = query_img_id.split(os.sep)[-3]
+        # cat2_code = query_img_id.split(os.sep)[-2]
+        # img_id = query_img_id.split(os.sep)[-1]
         qtext = ""
         qimage_path = os.path.join(self.query_image_folder, query_img_id + ".jpg")
         ima = process_img_to_torch(qimage_path, 224, preprocess)

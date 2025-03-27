@@ -54,25 +54,21 @@ def create_table(image_embedding_model_name):
         conn.close()
 
 
-def insert_embeddings(image_embedding_model_name, ids, image_embeddings, category1, category2, batch_size):
+def insert_embeddings(image_embedding_model_name, ids, image_embeddings, cat1s, cat2s):
     table_name = f"image_embeddings_{image_embedding_model_name}"
 
     conn = connect_db()
     cur = conn.cursor()
 
     try:
-        for i in range(0, len(ids), batch_size):
-            batch_ids = ids[i:i + batch_size]
-            batch_embeddings = image_embeddings[i:i + batch_size]
-
-            for id, embedding in zip(batch_ids, batch_embeddings):
-                query = f"""
-                    INSERT INTO "{table_name}" (id, embedding, category1, category2)
-                    VALUES (%s, %s, %s, %s)
-                """
-                cur.execute(query, (str(id), embedding.tolist(), category1, category2))
-            conn.commit()
-            print(f"Batch {i // batch_size + 1} inserted into PostgreSQL.")
+        for id, embedding, cat1, cat2 in zip(ids, image_embeddings, cat1s, cat2s):
+            print(id, embedding)
+            query = f"""
+                INSERT INTO "{table_name}" (id, embedding, category1, category2)
+                VALUES (%s, %s, %s, %s)
+            """
+            cur.execute(query, (str(id), embedding.tolist(), cat1, cat2))
+        conn.commit()
 
     except Exception as e:
         print(f"Error inserting into PostgreSQL: {e}")
@@ -165,11 +161,11 @@ def print_pgvector_info(image_embedding_model_name):
     conn.close()
 
 
-def insert_image_embeddings_into_postgres(image_embedding_model_name, batch_ids, image_embeddings, category1, category2,
-                                          batch_size):
+def insert_image_embeddings_into_postgres(image_embedding_model_name, batch_ids, image_embeddings, batch_cat1s,
+                                          batch_cat2s):
     create_table(image_embedding_model_name)
     create_index(image_embedding_model_name)
-    insert_embeddings(image_embedding_model_name, batch_ids, image_embeddings, category1, category2, batch_size)
+    insert_embeddings(image_embedding_model_name, batch_ids, image_embeddings, batch_cat1s, batch_cat2s)
     print_pgvector_info(image_embedding_model_name)
 
 
