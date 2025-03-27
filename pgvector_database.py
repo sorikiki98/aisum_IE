@@ -65,6 +65,7 @@ def insert_embeddings(image_embedding_model_name, ids, image_embeddings, cat1s, 
             query = f"""
                 INSERT INTO "{table_name}" (id, embedding, category1, category2)
                 VALUES (%s, %s, %s, %s)
+                ON CONFLICT (id) DO NOTHING;
             """
             embedding = embedding.tolist()
             cur.execute(query, (str(id), embedding, cat1, cat2))
@@ -192,7 +193,11 @@ def search_similar_vectors(image_embedding_model_name, query_ids, query_embeddin
             query = select_clause + "ORDER BY distance ASC LIMIT 10;"
             params = (query_embedding.tolist(),)
             label = f"🔎 [전체 검색] - Query #{idx + 1}: {query_id}"
-        else:
+        elif category1 is not None and category2 is None:
+            query = select_clause + "WHERE category1 = %s ORDER BY distance ASC LIMIT 10;"
+            params = (query_embedding.tolist(), category1)
+            label = f"🔍 [카테고리1 필터 검색] - Query #{idx + 1}: {query_id}"
+        elif category1 is not None and category2 is not None:
             query = select_clause + "WHERE category1 = %s AND category2 = %s ORDER BY distance ASC LIMIT 10;"
             params = (query_embedding.tolist(), category1, category2)
             label = f"🔍 [카테고리 필터 검색] - Query #{idx + 1}: {query_id}"
