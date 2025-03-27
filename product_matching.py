@@ -19,20 +19,26 @@ def find_similar_product_ids(image_embedding_model,
 
     return ids, similarities
 
+def save_retrieved_images_by_ids(image_embedding_model_name, all_batch_ids, all_batch_similarities,
+                                 all_batch_cat1s, all_batch_cat2s):
+    for batch_index, (batch_ids, cat1_list, cat2_list, sim_list) in enumerate(
+        zip(all_batch_ids, all_batch_cat1s, all_batch_cat2s, all_batch_similarities)):
+        
+        retrieved_image_folder = f"./outputs/{image_embedding_model_name}/{batch_index + 1}"
 
-def save_retrieved_images_by_ids(image_embedding_model_name, all_batch_ids, all_batch_similarities, category1,
-                                 category2):
-    for i, batch_ids in enumerate(all_batch_ids):
-        retrieved_image_folder = f"./outputs/{image_embedding_model_name}/{i}"
         if os.path.exists(retrieved_image_folder):
             shutil.rmtree(retrieved_image_folder)
         os.makedirs(retrieved_image_folder, exist_ok=True)
-        for j, img_id in enumerate(batch_ids):
-            file_path = os.path.join(f'./data/eseltree/images/{category1}/{category2}', str(img_id) + '.jpg')
+
+        for idx, (img_id, cat1, cat2, similarity) in enumerate(zip(batch_ids, cat1_list, cat2_list, sim_list)):
+            file_path = os.path.join("./data/eseltree/images",cat1,cat2,f"{img_id}.jpg")
+
             if os.path.exists(file_path):
                 image = Image.open(file_path)
-                save_path = os.path.join(retrieved_image_folder, f"top_{j + 1}_{all_batch_similarities[i][j]}.jpg")
+                save_path = os.path.join(retrieved_image_folder, f"top_{idx + 1}_{similarity}.jpg")
                 image.save(save_path)
+            else:
+                print(f"File does not exist: {file_path}")
 
 
 def find_similar_product(image_embedding_model, image_embedding_model_name, category1, category2, model_params=None):
@@ -40,7 +46,7 @@ def find_similar_product(image_embedding_model, image_embedding_model_name, cate
     ids, category1s, category2s, similarities = search_similar_vectors(image_embedding_model_name, query_ids, query_embeddings,
                                                                        category1, category2)
 
-    return ids, similarities
+    return ids, similarities, category1s, category2s
 
 
 if __name__ == "__main__":
@@ -61,6 +67,6 @@ if __name__ == "__main__":
     category2 = input("Enter category2 (or press Enter to skip): ").strip() or None
     print_pgvector_info(image_embedding_model_name)
     image_embedding_model, params = load_image_embedding_model(image_embedding_model_name)
-    all_ids, all_similarities = find_similar_product(image_embedding_model, image_embedding_model_name,
-                                                      category1, category2, params)
-    save_retrieved_images_by_ids(image_embedding_model_name, all_ids, all_similarities, category1, category2)
+    ids, similarities, category1s, category2s = find_similar_product(image_embedding_model, image_embedding_model_name,
+                                                                     category1, category2, params)
+    save_retrieved_images_by_ids(image_embedding_model_name, ids, similarities, category1s, category2s)

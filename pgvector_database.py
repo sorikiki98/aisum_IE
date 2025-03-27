@@ -184,8 +184,8 @@ def search_similar_vectors(image_embedding_model_name, query_ids, query_embeddin
     """
 
     all_ids = []
-    cat1s = []
-    cat2s = []
+    all_cat1s = []
+    all_cat2s = []
     all_distances = []
 
     for idx, (query_id, query_embedding) in enumerate(zip(query_ids, query_embeddings)):
@@ -221,12 +221,14 @@ def search_similar_vectors(image_embedding_model_name, query_ids, query_embeddin
         """
         ids = [row[0] for row in results]
         all_ids.append(ids)
-        category1s = [row[1] for row in results]
-        category2s = [row[2] for row in results]
+        cat1s = [row[1] for row in results]
+        all_cat1s.append(cat1s)
+        cat2s = [row[2] for row in results]
+        all_cat2s.append(cat2s)
         distances = [row[3] for row in results]
         all_distances.append(distances)
 
     cur.close()
     conn.close()
 
-    return all_ids, category1s, category2s, all_distances
+    return all_ids, all_cat1s, all_cat2s, all_distances
