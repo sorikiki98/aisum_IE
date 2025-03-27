@@ -22,7 +22,7 @@ if __name__ == "__main__":
     params, dataset = None, None
     tokenizer = clip_tokenizer.build_tokenizer()
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    batch_size = 3  # todo
+    batch_size = 10 # todo
 
     if image_embedding_model_name.startswith("magiclens"):
         image_embedding_model, params = load_image_embedding_model(image_embedding_model_name)
@@ -78,7 +78,6 @@ if __name__ == "__main__":
             batch_embeddings = outputs.last_hidden_state[:, 0, :]
             batch_embeddings_ndarray = batch_embeddings.cpu().numpy()
         elif image_embedding_model_name == 'efnet':
-            print(batch_examples[0].iimage.shape)
             iimages = [i.iimage for i in batch_examples]
             iimages = torch.stack(iimages).to(device)
             with torch.no_grad():

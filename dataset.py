@@ -182,15 +182,11 @@ class EselTreeDatasetDefault(Dataset):
 
     def prepare_index_examples(self, index_image_ids) -> List[IndexExample]:
         index_examples = []
-        with ThreadPoolExecutor() as executor:
-            index_example_futures = {executor.submit(self._process_index_example, index_img_id): index_img_id for
-                                     index_img_id in index_image_ids}
-
-            with tqdm(total=len(index_image_ids), desc="Index examples") as progress:
-                for future in as_completed(index_example_futures):
-                    index_example = future.result()
-                    index_examples.append(index_example)
-                    progress.update(1)
+        with tqdm(total=len(index_image_ids), desc="Index examples") as progress:
+            for index_img_id in index_image_ids:
+                index_example = self._process_index_example(index_img_id)
+                index_examples.append(index_example)
+                progress.update(1)
         return index_examples
 
     def prepare_query_examples(self, query_image_ids) -> List[QueryExample]:
