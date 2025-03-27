@@ -107,28 +107,20 @@ class EselTreeDatasetForMagicLens(Dataset):
 
     def prepare_index_examples(self, index_image_ids) -> List[IndexExample]:
         index_examples = []
-        with ThreadPoolExecutor() as executor:
-            index_example_futures = {executor.submit(self._process_index_example, index_img_id): index_img_id for
-                                     index_img_id in index_image_ids}
-
-            with tqdm(total=len(index_image_ids), desc="Index examples") as progress:
-                for future in as_completed(index_example_futures):
-                    index_example = future.result()
-                    index_examples.append(index_example)
-                    progress.update(1)
+        with tqdm(total=len(index_image_ids), desc="Index examples") as progress:
+            for index_img_id in index_image_ids:
+                index_example = self._process_index_example(index_img_id)
+                index_examples.append(index_example)
+                progress.update(1)
         return index_examples
 
     def prepare_query_examples(self, query_image_ids) -> List[QueryExample]:
         query_examples = []
-        with ThreadPoolExecutor() as executor:
-            query_futures = {executor.submit(self._process_query_example, query_img_id): query_img_id for
-                             query_img_id in query_image_ids}
-
-            with tqdm(total=len(query_image_ids), desc="Query examples") as progress:
-                for future in as_completed(query_futures):
-                    q_example = future.result()
-                    query_examples.append(q_example)
-                    progress.update(1)
+        with tqdm(total=len(query_image_ids), desc="Query examples") as progress:
+            for query_img_id in query_image_ids:
+                q_example = self._process_query_example(query_img_id)
+                query_examples.append(q_example)
+                progress.update(1)
         return query_examples
 
     def _process_index_example(self, index_img_id):  # cat1/cat2/img_id.jpg
@@ -191,15 +183,11 @@ class EselTreeDatasetDefault(Dataset):
 
     def prepare_query_examples(self, query_image_ids) -> List[QueryExample]:
         query_examples = []
-        with ThreadPoolExecutor() as executor:
-            query_futures = {executor.submit(self._process_query_example, query_img_id, self.preprocess): query_img_id
-                             for query_img_id in query_image_ids}
-
-            with tqdm(total=len(query_image_ids), desc="Query examples") as progress:
-                for future in as_completed(query_futures):
-                    q_example = future.result()
-                    query_examples.append(q_example)
-                    progress.update(1)
+        with tqdm(total=len(query_image_ids), desc="Query examples") as progress:
+            for query_img_id in query_image_ids:
+                q_example = self._process_query_example(query_img_id)
+                query_examples.append(q_example)
+                progress.update(1)
         return query_examples
 
     def _process_index_example(self, index_img_id):  # cat1/cat2/img_id.jpg
@@ -222,3 +210,4 @@ class EselTreeDatasetDefault(Dataset):
         qtokens = np.array(self.tokenizer(qtext))
         return QueryExample(qid=query_img_id, qtokens=qtokens, qimage=ima, target_iid=0, retrieved_iids=[],
                             retrieved_scores=[])
+                            
