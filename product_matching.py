@@ -36,8 +36,8 @@ def save_retrieved_images_by_ids(image_embedding_model_name, all_batch_ids, all_
 
 
 def find_similar_product(image_embedding_model, image_embedding_model_name, category1, category2, model_params=None):
-    query_embeddings = embed_images(image_embedding_model, image_embedding_model_name, model_params)
-    ids, category1s, category2s, similarities = search_similar_vectors(image_embedding_model_name, query_embeddings,
+    query_ids, query_embeddings = embed_images(image_embedding_model, image_embedding_model_name, model_params)
+    ids, category1s, category2s, similarities = search_similar_vectors(image_embedding_model_name, query_ids, query_embeddings,
                                                                        category1, category2)
 
     return ids, similarities
@@ -61,7 +61,6 @@ if __name__ == "__main__":
     category2 = input("Enter category2 (or press Enter to skip): ").strip() or None
     print_pgvector_info(image_embedding_model_name)
     image_embedding_model, params = load_image_embedding_model(image_embedding_model_name)
-    all_ids, all_similarities = find_similar_product(image_embedding_model, image_embedding_model_name, category1,
-                                                     category2,
-                                                     params)
+    all_ids, all_similarities = find_similar_product(image_embedding_model, image_embedding_model_name,
+                                                      category1, category2, params)
     save_retrieved_images_by_ids(image_embedding_model_name, all_ids, all_similarities, category1, category2)

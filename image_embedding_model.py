@@ -172,7 +172,7 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
     else:
         raise ValueError(f"Invalid embedding model name: {image_embedding_model_name}")
 
-    return image_embeddings_ndarray
+    return query_ids, image_embeddings_ndarray
 
 
 def get_intermediate_embeddings(model, images, target_layer):

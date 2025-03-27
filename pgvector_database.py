@@ -169,7 +169,7 @@ def insert_image_embeddings_into_postgres(image_embedding_model_name, batch_ids,
     print_pgvector_info(image_embedding_model_name)
 
 
-def search_similar_vectors(image_embedding_model_name, query_embeddings, category1, category2):
+def search_similar_vectors(image_embedding_model_name, query_ids, query_embeddings, category1, category2):
     table_name = f"image_embeddings_{image_embedding_model_name}"
 
     conn = connect_db()
@@ -187,15 +187,15 @@ def search_similar_vectors(image_embedding_model_name, query_embeddings, categor
     cat2s = []
     all_distances = []
 
-    for idx, query_embedding in enumerate(query_embeddings):
+    for idx, (query_id, query_embedding) in enumerate(zip(query_ids, query_embeddings)):
         if category1 is None or category2 is None:
             query = select_clause + "ORDER BY distance ASC LIMIT 10;"
             params = (query_embedding.tolist(),)
-            label = f"🔎 [전체 검색] - Query #{idx + 1}"
+            label = f"🔎 [전체 검색] - Query #{idx + 1}: {query_id}"
         else:
             query = select_clause + "WHERE category1 = %s AND category2 = %s ORDER BY distance ASC LIMIT 10;"
             params = (query_embedding.tolist(), category1, category2)
-            label = f"🔍 [카테고리 필터 검색] - Query #{idx + 1}"
+            label = f"🔍 [카테고리 필터 검색] - Query #{idx + 1}: {query_id}"
 
         start_time = time.perf_counter()
         cur.execute(query, params)
