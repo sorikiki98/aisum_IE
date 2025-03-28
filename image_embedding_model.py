@@ -16,6 +16,9 @@ from dataset import EselTreeDatasetForMagicLens, EselTreeDatasetDefault
 from scenic.projects.baselines.clip import tokenizer as clip_tokenizer
 from transformers import ViTModel, ViTImageProcessor
 
+import sys
+sys.path.append("/home/jiwoo/magiclens/aisum_IE/unicom")  # unicom이 있는 상위 폴더
+import unicom
 
 def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
     if image_embedding_model_name == "vit":
@@ -34,6 +37,8 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
         return 1024
     elif image_embedding_model_name == "convnextv2_large":
         return 1536
+    elif image_embedding_model_name == "unicom":
+        return 512  # ViT-B/32 기준
     else:
         raise ValueError("Invalid embedding model name")
 
@@ -41,10 +46,10 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
 def get_image_embedding_model_name():
     image_embedding_model_name = input("Enter embedding model name (vit, resnet152, efnet, magiclens_base, "
                                        "magiclens_large, convnextv2_small, convnextv2_base, convnextv2_large, "
-                                       "resnext101): ")
+                                       "resnext101, unicom): ")
     if image_embedding_model_name not in ["vit", "efnet", "resnet152", "magiclens_base", "magiclens_large",
                                           "convnextv2_small", "convnextv2_base", "convnextv2_large",
-                                          "resnext101"]:
+                                          "resnext101", "unicom"]:
         raise ValueError("Invalid embedding model name")
     return image_embedding_model_name
 
@@ -117,6 +122,12 @@ def load_image_embedding_model(image_embedding_model_name):
         return model, None
     elif image_embedding_model_name == "regnet":
         pass
+    elif image_embedding_model_name == "unicom":
+        model, preprocess = unicom.load("ViT-B/32") 
+        device = get_device()
+        model.to(device)
+        model.eval()
+        return model, preprocess
 
 
 def embed_images(image_embedding_model, image_embedding_model_name, model_params=None):
@@ -168,6 +179,19 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         adaptive_pool = nn.AdaptiveAvgPool2d((1, 1)).to(get_device())  # 1x1 크기로 변환
         qembeds = adaptive_pool(qembeds)
         qembeds = qembeds.reshape(qembeds.size(0), -1)
+        image_embeddings_ndarray = qembeds.cpu().numpy()
+    elif image_embedding_model_name == "unicom":
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=clip_tokenizer.build_tokenizer(), preprocess=model_params)
+        query_ids = dataset.query_image_ids
+        query_examples = dataset.prepare_query_examples(query_ids)
+        
+        qimages = [q.qimage for q in query_examples]
+        qimages = torch.stack(qimages).to(get_device())
+
+        with torch.no_grad():
+            qembeds = image_embedding_model(qimages)
+            qembeds = qembeds / qembeds.norm(dim=-1, keepdim=True)  # optional: 정규화
+
         image_embeddings_ndarray = qembeds.cpu().numpy()
     else:
         raise ValueError(f"Invalid embedding model name: {image_embedding_model_name}")
