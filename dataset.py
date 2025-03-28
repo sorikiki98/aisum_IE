@@ -69,6 +69,7 @@ def process_img_with_jax(image_path: str, size: int) -> np.ndarray:
 
 def process_img_to_torch(image_path: str, size: int, preprocess=None) -> torch.Tensor:
     img = Image.open(image_path).convert("RGB")
+
     if preprocess is None:
         preprocess = transforms.Compose([
             transforms.Resize((size, size)),
@@ -77,7 +78,12 @@ def process_img_to_torch(image_path: str, size: int, preprocess=None) -> torch.T
         ])
         return preprocess(img)
     else:
-        return preprocess(img, return_tensors="pt", input_data_format="channels_last")
+        try:
+            processed = preprocess(img, return_tensors="pt", input_data_format="channels_last")
+            return processed["pixel_values"]
+        except TypeError:
+            # unicom
+            return preprocess(img)
 
 
 class EselTreeDatasetForMagicLens(Dataset):
@@ -150,12 +156,12 @@ class EselTreeDatasetDefault(Dataset):
 
         self.dataset_name = dataset_name
         self.tokenizer = tokenizer
-        index_image_folder = "./data/eseltree/images"  # todo
+        index_image_folder = "./data"  # todo
         index_image_files = sorted(Path(index_image_folder).glob("**/*.jpg"))
         index_image_ids_with_cats = [str(file).split(".")[0] for file in index_image_files]
         index_image_ids = [file.stem for file in index_image_files]
 
-        query_image_folder = "./data/test/images"  # todo
+        query_image_folder = "./data/test"  # todo
         query_image_files = sorted(Path(query_image_folder).glob("*.jpg"))
         query_image_ids = [file.stem for file in query_image_files]
 
