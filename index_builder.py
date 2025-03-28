@@ -22,7 +22,7 @@ if __name__ == "__main__":
     params, dataset = None, None
     tokenizer = clip_tokenizer.build_tokenizer()
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    batch_size = 10 # todo
+    batch_size = 512  # todo
 
     if image_embedding_model_name.startswith("magiclens"):
         image_embedding_model, params = load_image_embedding_model(image_embedding_model_name)
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     elif image_embedding_model_name.startswith("convnextv2"):
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
-    elif image_embedding_model_name == 'ViT':
+    elif image_embedding_model_name == 'vit':
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         preprocess = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224-in21k')
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
@@ -70,7 +70,7 @@ if __name__ == "__main__":
             batch_embeddings = adaptive_pool(batch_embeddings)
             batch_embeddings = batch_embeddings.reshape(batch_embeddings.size(0), -1)
             batch_embeddings_ndarray = batch_embeddings.cpu().numpy()
-        elif image_embedding_model_name == 'ViT':
+        elif image_embedding_model_name == 'vit':
             iimages = [i.iimage['pixel_values'].to(device) for i in batch_examples]
             iimages = torch.cat(iimages, dim=0)
             with torch.no_grad():
@@ -95,4 +95,3 @@ if __name__ == "__main__":
         insert_image_embeddings_into_postgres(image_embedding_model_name, batch_ids, batch_embeddings_ndarray,
                                               batch_cat1s, batch_cat2s)
 
-        break

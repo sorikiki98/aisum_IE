@@ -61,7 +61,6 @@ def insert_embeddings(image_embedding_model_name, ids, image_embeddings, cat1s, 
     cur = conn.cursor()
     try:
         for id, embedding, cat1, cat2 in zip(ids, image_embeddings, cat1s, cat2s):
-            print(id, embedding[:3])
             query = f"""
                 INSERT INTO "{table_name}" (id, embedding, category1, category2)
                 VALUES (%s, %s, %s, %s)

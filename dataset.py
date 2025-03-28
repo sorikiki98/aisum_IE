@@ -176,7 +176,7 @@ class EselTreeDatasetDefault(Dataset):
         index_examples = []
         with tqdm(total=len(index_image_ids), desc="Index examples") as progress:
             for index_img_id in index_image_ids:
-                index_example = self._process_index_example(index_img_id)
+                index_example = self._process_index_example(index_img_id, preprocess=self.preprocess)
                 index_examples.append(index_example)
                 progress.update(1)
         return index_examples
@@ -185,17 +185,17 @@ class EselTreeDatasetDefault(Dataset):
         query_examples = []
         with tqdm(total=len(query_image_ids), desc="Query examples") as progress:
             for query_img_id in query_image_ids:
-                q_example = self._process_query_example(query_img_id)
+                q_example = self._process_query_example(query_img_id, preprocess=self.preprocess)
                 query_examples.append(q_example)
                 progress.update(1)
         return query_examples
 
-    def _process_index_example(self, index_img_id):  # cat1/cat2/img_id.jpg
+    def _process_index_example(self, index_img_id, preprocess=None):  # cat1/cat2/img_id.jpg
         cat1_code = index_img_id.split(os.sep)[-3]
         cat2_code = index_img_id.split(os.sep)[-2]
         img_id = index_img_id.split(os.sep)[-1]
         img_path = os.path.join(self.index_image_folder, cat1_code, cat2_code, img_id + ".jpg")
-        ima = process_img_to_torch(img_path, 224)
+        ima = process_img_to_torch(img_path, 224, preprocess)
         return IndexExample(iid=index_img_id, iimage=ima, itokens=self.null_tokens, category1_code=cat1_code,
                             category2_code=cat2_code)
 
