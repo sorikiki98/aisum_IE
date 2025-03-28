@@ -31,7 +31,7 @@ def save_retrieved_images_by_ids(image_embedding_model_name, all_batch_ids, all_
         os.makedirs(retrieved_image_folder, exist_ok=True)
 
         for idx, (img_id, cat1, cat2, similarity) in enumerate(zip(batch_ids, cat1_list, cat2_list, sim_list)):
-            file_path = os.path.join("./data/eseltree/images",cat1,cat2,f"{img_id}.jpg")
+            file_path = os.path.join("./data",cat1,cat2,f"{img_id}.jpg")
 
             if os.path.exists(file_path):
                 image = Image.open(file_path)

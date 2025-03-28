@@ -4,6 +4,9 @@ from scenic.projects.baselines.clip import tokenizer as clip_tokenizer
 from pgvector_database import *
 from pathlib import Path
 
+import sys
+sys.path.append("/home/jiwoo/magiclens/aisum_IE/unicom")  # unicom이 있는 상위 폴더
+import unicom
 
 def extract_last_two_categories(path_str):
     parts = Path(path_str).parts
@@ -34,10 +37,17 @@ if __name__ == "__main__":
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         preprocess = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224-in21k')
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+    elif image_embedding_model_name == "unicom":
+        image_embedding_model, preprocess = load_image_embedding_model(image_embedding_model_name)  # 모델명 선택 가능
+        image_embedding_model = image_embedding_model.to(device)
+        print("🧪 dataset 생성 시작")
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+        print("✅ dataset 생성 완료")
     else:
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
-
+        
+    print("📦 총 index 이미지 수:", len(dataset.index_image_ids))
     len_index_examples = len(dataset.index_image_ids)
     total_batches = len_index_examples // batch_size + (1 if len_index_examples % batch_size > 0 else 0)
 
@@ -82,6 +92,13 @@ if __name__ == "__main__":
             iimages = torch.stack(iimages).to(device)
             with torch.no_grad():
                 batch_embeddings = image_embedding_model(iimages)
+            batch_embeddings_ndarray = batch_embeddings.cpu().numpy()
+        elif image_embedding_model_name == "unicom":
+            iimages = [i.iimage for i in batch_examples]
+            iimages = torch.stack(iimages).to(device)
+            with torch.no_grad():
+                batch_embeddings = image_embedding_model(iimages)
+                batch_embeddings = batch_embeddings / batch_embeddings.norm(dim=-1, keepdim=True)  # (optional) cosine similarity정규화
             batch_embeddings_ndarray = batch_embeddings.cpu().numpy()
         else:
             iimages = [i.iimage for i in batch_examples]
