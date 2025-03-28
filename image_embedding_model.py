@@ -1,6 +1,6 @@
 import jax
 import jax.numpy as jnp
-
+import warnings
 from torchvision import models
 import torch
 import torch.nn as nn
@@ -16,6 +16,7 @@ from dataset import EselTreeDatasetForMagicLens, EselTreeDatasetDefault
 from scenic.projects.baselines.clip import tokenizer as clip_tokenizer
 from transformers import ViTModel, ViTImageProcessor
 
+warnings.filterwarnings("ignore", category=UserWarning, module="dinov2")
 
 def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
     if image_embedding_model_name == "vit":
@@ -34,6 +35,8 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
         return 1024
     elif image_embedding_model_name == "convnextv2_large":
         return 1536
+    elif image_embedding_model_name == "dinov2":
+        return 1536
     else:
         raise ValueError("Invalid embedding model name")
 
@@ -41,10 +44,10 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
 def get_image_embedding_model_name():
     image_embedding_model_name = input("Enter embedding model name (vit, resnet152, efnet, magiclens_base, "
                                        "magiclens_large, convnextv2_small, convnextv2_base, convnextv2_large, "
-                                       "resnext101): ")
+                                       "resnext101, dinov2): ")
     if image_embedding_model_name not in ["vit", "efnet", "resnet152", "magiclens_base", "magiclens_large",
                                           "convnextv2_small", "convnextv2_base", "convnextv2_large",
-                                          "resnext101"]:
+                                          "resnext101", "dinov2"]:
         raise ValueError("Invalid embedding model name")
     return image_embedding_model_name
 
@@ -115,6 +118,14 @@ def load_image_embedding_model(image_embedding_model_name):
         model.to(device)
         model.eval()
         return model, None
+    elif image_embedding_model_name == "dinov2":
+        model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitg14', pretrained=True, force_reload=False, verbose=False)
+        for block in model.blocks:
+            block.attn.use_mem_efficient_attention = True
+        device = get_device()
+        model.to(device)
+        model.eval()
+        return model, None
     elif image_embedding_model_name == "regnet":
         pass
 
@@ -151,7 +162,6 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         query_examples = dataset.prepare_query_examples(query_ids)
         qimages = [i.qimage['pixel_values'].to(get_device()) for i in query_examples]
         qimages = torch.cat(qimages, dim=0)
-
         with torch.no_grad():
             outputs = image_embedding_model(qimages)
         image_embeddings = outputs.last_hidden_state[:, 0, :]
@@ -168,6 +178,17 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         adaptive_pool = nn.AdaptiveAvgPool2d((1, 1)).to(get_device())  # 1x1 크기로 변환
         qembeds = adaptive_pool(qembeds)
         qembeds = qembeds.reshape(qembeds.size(0), -1)
+        image_embeddings_ndarray = qembeds.cpu().numpy()
+    elif image_embedding_model_name == "dinov2":
+        tokenizer = clip_tokenizer.build_tokenizer()
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
+        query_ids = dataset.query_image_ids
+        query_examples = dataset.prepare_query_examples(query_ids)
+        qimages = [q.qimage for q in query_examples]
+        qimages = torch.stack(qimages).to(get_device()).half()  # float16으로 변환
+        image_embedding_model = image_embedding_model.half()  # 모델도 float16으로 변환
+        with torch.no_grad():
+            qembeds = image_embedding_model(qimages)
         image_embeddings_ndarray = qembeds.cpu().numpy()
     else:
         raise ValueError(f"Invalid embedding model name: {image_embedding_model_name}")
