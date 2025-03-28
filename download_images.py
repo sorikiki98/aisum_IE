@@ -27,7 +27,7 @@ try:
             response.raise_for_status()
             file_name = os.path.splitext(os.path.basename(url))[0]
             file_extension = os.path.splitext(os.path.basename(url))[1]
-            save_path = os.path.join(f"{root_dir}/{cat1}/{cat2}", f"{file_name}{file_extension}")
+            save_path = os.path.join(f"{root_dir}/eseltree/images/{cat1}/{cat2}", f"{file_name}{file_extension}")
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             with open(save_path, "wb") as file:
                 for chunk in response.iter_content(1024):
