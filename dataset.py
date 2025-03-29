@@ -67,7 +67,7 @@ def process_img_with_jax(image_path: str, size: int) -> np.ndarray:
     return np.array(ima)
 
 
-def process_img_to_torch(image_path: str, size: int, preprocess=None) -> torch.Tensor:
+def process_img_to_torch(image_path: str, size: int, preprocess=None, prompt=None) -> torch.Tensor:
     img = Image.open(image_path).convert("RGB")
     if preprocess is None:
         preprocess = transforms.Compose([
@@ -77,7 +77,10 @@ def process_img_to_torch(image_path: str, size: int, preprocess=None) -> torch.T
         ])
         return preprocess(img)
     else:
-        return preprocess(img, return_tensors="pt", input_data_format="channels_last")
+        if prompt is None:
+            return preprocess(img, return_tensors="pt", input_data_format="channels_last")
+        else:
+            return preprocess(images=img, return_tensors="pt", text=prompt)
 
 
 class EselTreeDatasetForMagicLens(Dataset):
@@ -146,7 +149,7 @@ class EselTreeDatasetForMagicLens(Dataset):
 
 
 class EselTreeDatasetDefault(Dataset):
-    def __init__(self, dataset_name: str, tokenizer: Any, preprocess=None):
+    def __init__(self, dataset_name: str, tokenizer: Any, preprocess=None, prompt=None):
 
         self.dataset_name = dataset_name
         self.tokenizer = tokenizer
@@ -171,12 +174,14 @@ class EselTreeDatasetDefault(Dataset):
         self.query_image_ids = query_image_ids
         self.null_tokens = null_tokens
         self.preprocess = preprocess
+        self.prompt = prompt
 
     def prepare_index_examples(self, index_image_ids) -> List[IndexExample]:
         index_examples = []
         with tqdm(total=len(index_image_ids), desc="Index examples") as progress:
             for index_img_id in index_image_ids:
-                index_example = self._process_index_example(index_img_id, preprocess=self.preprocess)
+                index_example = self._process_index_example(index_img_id, preprocess=self.preprocess,
+                                                            prompt=self.prompt)
                 index_examples.append(index_example)
                 progress.update(1)
         return index_examples
@@ -185,29 +190,28 @@ class EselTreeDatasetDefault(Dataset):
         query_examples = []
         with tqdm(total=len(query_image_ids), desc="Query examples") as progress:
             for query_img_id in query_image_ids:
-                q_example = self._process_query_example(query_img_id, preprocess=self.preprocess)
+                q_example = self._process_query_example(query_img_id, preprocess=self.preprocess, prompt=self.prompt)
                 query_examples.append(q_example)
                 progress.update(1)
         return query_examples
 
-    def _process_index_example(self, index_img_id, preprocess=None):  # cat1/cat2/img_id.jpg
+    def _process_index_example(self, index_img_id, preprocess=None, prompt=None):  # cat1/cat2/img_id.jpg
         cat1_code = index_img_id.split(os.sep)[-3]
         cat2_code = index_img_id.split(os.sep)[-2]
         img_id = index_img_id.split(os.sep)[-1]
         img_path = os.path.join(self.index_image_folder, cat1_code, cat2_code, img_id + ".jpg")
-        ima = process_img_to_torch(img_path, 224, preprocess)
+        ima = process_img_to_torch(img_path, 224, preprocess, prompt)
         return IndexExample(iid=index_img_id, iimage=ima, itokens=self.null_tokens, category1_code=cat1_code,
                             category2_code=cat2_code)
 
-    def _process_query_example(self, query_img_id, preprocess=None):  # cat1/cat2/img_id.jpg
+    def _process_query_example(self, query_img_id, preprocess=None, prompt=None):  # cat1/cat2/img_id.jpg
         # todo: server 연동 시, 아래 코드 사용
         # cat1_code = query_img_id.split(os.sep)[-3]
         # cat2_code = query_img_id.split(os.sep)[-2]
         # img_id = query_img_id.split(os.sep)[-1]
         qtext = ""
         qimage_path = os.path.join(self.query_image_folder, query_img_id + ".jpg")
-        ima = process_img_to_torch(qimage_path, 224, preprocess)
+        ima = process_img_to_torch(qimage_path, 224, preprocess, prompt)
         qtokens = np.array(self.tokenizer(qtext))
         return QueryExample(qid=query_img_id, qtokens=qtokens, qimage=ima, target_iid=0, retrieved_iids=[],
                             retrieved_scores=[])
-                            

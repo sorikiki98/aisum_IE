@@ -14,7 +14,8 @@ from models.resnext import ResNext101
 from models.magiclens import MagicLens
 from dataset import EselTreeDatasetForMagicLens, EselTreeDatasetDefault
 from scenic.projects.baselines.clip import tokenizer as clip_tokenizer
-from transformers import ViTModel, ViTImageProcessor
+from transformers import ViTModel, ViTImageProcessor, Blip2Processor
+from transformers import Blip2Model
 
 
 def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
@@ -34,6 +35,8 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
         return 1024
     elif image_embedding_model_name == "convnextv2_large":
         return 1536
+    elif image_embedding_model_name == "blip2":
+        return 768
     else:
         raise ValueError("Invalid embedding model name")
 
@@ -41,10 +44,10 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
 def get_image_embedding_model_name():
     image_embedding_model_name = input("Enter embedding model name (vit, resnet152, efnet, magiclens_base, "
                                        "magiclens_large, convnextv2_small, convnextv2_base, convnextv2_large, "
-                                       "resnext101): ")
+                                       "resnext101, blip2): ")
     if image_embedding_model_name not in ["vit", "efnet", "resnet152", "magiclens_base", "magiclens_large",
                                           "convnextv2_small", "convnextv2_base", "convnextv2_large",
-                                          "resnext101"]:
+                                          "resnext101", "blip2"]:
         raise ValueError("Invalid embedding model name")
     return image_embedding_model_name
 
@@ -115,8 +118,14 @@ def load_image_embedding_model(image_embedding_model_name):
         model.to(device)
         model.eval()
         return model, None
-    elif image_embedding_model_name == "regnet":
-        pass
+    elif image_embedding_model_name == "blip2":
+        model = Blip2Model.from_pretrained(
+            "Salesforce/blip2-flan-t5-xxl", torch_dtype=torch.float16
+        )
+        device = get_device()
+        model.to(device)
+        model.eval()
+        return model, None
 
 
 def embed_images(image_embedding_model, image_embedding_model_name, model_params=None):
@@ -169,6 +178,18 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         qembeds = adaptive_pool(qembeds)
         qembeds = qembeds.reshape(qembeds.size(0), -1)
         image_embeddings_ndarray = qembeds.cpu().numpy()
+    elif image_embedding_model_name == "blip2":
+        preprocess = Blip2Processor.from_pretrained('Salesforce/blip2-flan-t5-xxl')
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess,
+                                         prompt="Question: Describe the product. Answer:")
+        query_ids = dataset.query_image_ids
+        query_examples = dataset.prepare_query_examples(query_ids)
+        qimages = [i.qimage['pixel_values'].to(get_device()) for i in query_examples]
+        qimages = torch.cat(qimages, dim=0)
+        with torch.no_grad():
+            outputs = image_embedding_model.get_qformer_features(qimages).last_hidden_state
+            pooled_outputs = torch.mean(outputs, dim=1)
+        image_embeddings_ndarray = pooled_outputs.cpu().numpy()
     else:
         raise ValueError(f"Invalid embedding model name: {image_embedding_model_name}")
 
