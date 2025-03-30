@@ -18,8 +18,8 @@ def find_similar_product_ids(image_embedding_model,
 
 def save_retrieved_images_by_ids(image_embedding_model_name, all_batch_ids, all_batch_similarities, category1, category2):
     # ✅ WSL 경로에 맞게 프로젝트 루트 고정
-    project_root = Path("/mnt/c/Users/SMU/Documents/aisum_IE")
-    data_root = project_root / "data"
+    project_root = Path(__file__).parent
+    data_root = project_root / "data" / "eseltree" / "images"
 
     for i, batch_ids in enumerate(all_batch_ids):
         # 분석용 outputs 폴더
