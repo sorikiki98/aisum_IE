@@ -40,55 +40,40 @@ async def embed_and_search_similar_images(
 
     try:
         image_bytes = await file.read()
-
-        project_root = Path(__file__).parent.parent
-        save_dir = project_root / "output" / model_name / category1 / category2
-        save_dir.mkdir(parents=True, exist_ok=True)
+        project_root = Path(__file__).resolve().parent.parent
+        query_save_dir = project_root / "data" / "test" / "images"
+        query_save_dir.mkdir(parents=True, exist_ok=True)
 
         extension = Path(file.filename).suffix
-        filename = f"{uuid4().hex}{extension}"
-        save_path = save_dir / filename
+        query_filename = f"{uuid4().hex}{extension}"
+        query_save_path = query_save_dir / query_filename
 
-        with open(save_path, "wb") as f:
+        with open(query_save_path, "wb") as f:
             f.write(image_bytes)
 
-        with open(save_path, "rb") as f:
-            image_bytes = f.read()
-
-        model, model_params = load_image_embedding_model(model_name)
-
-        query_vector = embed_images(
-            image_embedding_model=model,
-            image_embedding_model_name=model_name,
-            model_params=model_params,
-            query_image_bytes=[image_bytes]
-        )[0]
-
-    except Exception as e:
-        print(f"❌ 모델 임베딩 실패: {e}")
-        return JSONResponse(content={"error": str(e)}, status_code=400)
-
-    try:
-        result_ids, _, _, result_distances = search_similar_vectors(
-            image_embedding_model_name=model_name,
-            query_embeddings=[query_vector],
-            query_ids=["uploaded_query"],
-            category1=category1,
-            category2=category2,
-        )
-
-        # ✅ 복사 실행
-        save_retrieved_images_by_ids(
-            image_embedding_model_name=model_name,
-            all_batch_ids=result_ids,
-            all_batch_similarities=result_distances,
+        # Use product_matching.py logic
+        from product_matching import main as product_matching_main
+        result = product_matching_main(
+            model_name=model_name,
             category1=category1,
             category2=category2
         )
 
-        # ✅ 프론트용 경로 리턴
-        top_k_paths = [f"images/{category1}/{category2}/{img_id}.jpg" for img_id in result_ids[0]]
-        top_k_distances = result_distances[0]
+        # Get the sorted list of result images from the output directory
+        output_dir = project_root / "outputs" / model_name / "0"
+        print(f"Looking for results in: {output_dir}")
+        
+        # Get all top_*.jpg files and sort them by number
+        result_images = sorted(
+            [f for f in output_dir.glob("top_*.jpg")],
+            key=lambda x: int(x.stem.split('_')[1])  # Sort by the number after 'top_'
+        )
+        
+        print(f"Found {len(result_images)} result images")
+        
+        # Convert paths to relative format for frontend
+        top_k_paths = [f"outputs/{model_name}/0/{img.name}" for img in result_images]
+        top_k_distances = result['result_distances'][0]
 
         return JSONResponse(content={
             "similar_images": top_k_paths,
@@ -96,7 +81,7 @@ async def embed_and_search_similar_images(
         })
 
     except Exception as e:
-        print(f"❌ 유사 이미지 검색 실패: {e}")
+        print(f"❌ 처리 실패: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
@@ -104,10 +89,12 @@ async def embed_and_search_similar_images(
 frontend_build_path = Path(__file__).resolve().parent / "aisum-ui" / "build"
 app.mount("/static", StaticFiles(directory=frontend_build_path / "static"), name="static")
 
+# ✅ output 디렉토리도 정적 파일로 마운트
+project_root = Path(__file__).parent.parent
 app.mount(
-    "/images",
-    StaticFiles(directory=Path(__file__).parent.parent / "data" / "eseltree" / "images"),
-    name="images"
+    "/outputs",
+    StaticFiles(directory=project_root / "outputs"),
+    name="outputs"
 )
 
 app.mount("/", StaticFiles(directory=frontend_build_path, html=True), name="frontend")

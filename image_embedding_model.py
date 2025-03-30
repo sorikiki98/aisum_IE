@@ -7,6 +7,9 @@ import torch.nn as nn
 import numpy as np
 import pickle
 import timm
+import io
+from PIL import Image
+from torchvision import transforms
 
 from flax import serialization
 from models.resnet import ResNet152
@@ -14,11 +17,11 @@ from models.resnext import ResNext101
 from models.magiclens import MagicLens
 from dataset import EselTreeDatasetForMagicLens, EselTreeDatasetDefault
 from scenic.projects.baselines.clip import tokenizer as clip_tokenizer
-from transformers import ViTModel, ViTImageProcessor
+from transformers import ViTModel, ViTImageProcessor, AutoModel, AutoTokenizer, AutoProcessor
 
 
 def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
-    if image_embedding_model_name == "ViT":
+    if image_embedding_model_name == "vit":
         return 768
     elif image_embedding_model_name == "resnet152" or image_embedding_model_name == "resnext101":
         return 2048
@@ -27,25 +30,32 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
     elif image_embedding_model_name == "magiclens_base":
         return 512
     elif image_embedding_model_name == "magiclens_large":
-        return 1024
+        return 768
     elif image_embedding_model_name == "convnextv2_small":
         return 768
     elif image_embedding_model_name == "convnextv2_base":
         return 1024
     elif image_embedding_model_name == "convnextv2_large":
         return 1536
+    elif image_embedding_model_name == "dinov2":
+        return 1536
+    elif image_embedding_model_name == "siglip_so400":
+        return 1152
+    elif image_embedding_model_name == "siglip_large":
+        return 1024
+    elif image_embedding_model_name == "siglip2":
+        return 1152
     else:
         raise ValueError("Invalid embedding model name")
 
 
 def get_image_embedding_model_name():
-    image_embedding_model_name = input("Enter embedding model name (ViT, resnet152, efnet, magiclens_base, "
+    image_embedding_model_name = input("Enter embedding model name (vit, resnet152, efnet, magiclens_base, "
                                        "magiclens_large, convnextv2_small, convnextv2_base, convnextv2_large, "
-                                       "resnext101): ")
-    print(image_embedding_model_name)
-    if image_embedding_model_name not in ["ViT", "efnet", "resnet152", "magiclens_base", "magiclens_large",
+                                       "resnext101, dinov2, siglip_so400, siglip_large, siglip2): ")
+    if image_embedding_model_name not in ["vit", "efnet", "resnet152", "magiclens_base", "magiclens_large",
                                           "convnextv2_small", "convnextv2_base", "convnextv2_large",
-                                          "resnext101"]:
+                                          "resnext101", "dinov2", "siglip_so400", "siglip_large", "siglip2"]:
         raise ValueError("Invalid embedding model name")
     return image_embedding_model_name
 
@@ -57,7 +67,7 @@ def get_device():
 
 
 def load_image_embedding_model(image_embedding_model_name):
-    if image_embedding_model_name == "ViT":
+    if image_embedding_model_name == "vit":
         model = ViTModel.from_pretrained('google/vit-base-patch16-224-in21k')
         device = get_device()
         model.to(device)
@@ -116,100 +126,101 @@ def load_image_embedding_model(image_embedding_model_name):
         model.to(device)
         model.eval()
         return model, None
+    elif image_embedding_model_name == "siglip_large":
+        model = AutoModel.from_pretrained("google/siglip-large-patch16-384")
+        device = get_device()
+        model.to(device)
+        model.eval()
+        return model, None
+    elif image_embedding_model_name == "siglip2":
+        model = AutoModel.from_pretrained("google/siglip2-so400m-patch14-384")
+        device = get_device()
+        model.to(device)
+        model.eval()
+        return model, None
+    elif image_embedding_model_name == "regnet":
+        pass
 
 
-def embed_images(image_embedding_model, image_embedding_model_name, model_params=None, query_image_bytes=None):
+def embed_images(image_embedding_model, image_embedding_model_name, model_params=None):
     tokenizer = clip_tokenizer.build_tokenizer()
-    device = get_device()
+    if image_embedding_model_name == "magiclens_base" or image_embedding_model_name == "magiclens_large":
+        dataset = EselTreeDatasetForMagicLens(dataset_name="eseltree", tokenizer=tokenizer)
+        query_ids = dataset.query_image_ids
+        query_examples = dataset.prepare_query_examples(query_ids)
 
-    if query_image_bytes is not None:
-        # 🔹 단일 이미지 바이트 직접 처리하는 흐름 (배치 1)
-        from PIL import Image
-        import io
-        import torchvision.transforms as T
+        qimages = jnp.concatenate([i.qimage for i in query_examples], axis=0)
+        qtokens = jnp.concatenate([i.qtokens for i in query_examples], axis=0)
+        qembeds = image_embedding_model.apply(model_params, {"ids": qtokens, "image": qimages})[
+            "multimodal_embed_norm"
+        ]
+        image_embeddings_ndarray = np.array(qembeds)
+    elif image_embedding_model_name == "resnet152" or image_embedding_model_name == "resnext101" or image_embedding_model_name == "efnet":
+        tokenizer = clip_tokenizer.build_tokenizer()
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
+        query_ids = dataset.query_image_ids
+        query_examples = dataset.prepare_query_examples(query_ids)
 
-        image = Image.open(io.BytesIO(query_image_bytes[0])).convert("RGB")  # 리스트로 감싼 한 장
-        print(f"✅ 단일 이미지 처리 - 모델: {image_embedding_model_name}")
+        qimages = [q.qimage for q in query_examples]
+        qimages = torch.stack(qimages).to(get_device())
+        with torch.no_grad():
+            qembeds = image_embedding_model(qimages)
+        image_embeddings_ndarray = qembeds.cpu().numpy()
+    elif image_embedding_model_name == "vit":
+        tokenizer = clip_tokenizer.build_tokenizer()
+        preprocess = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224-in21k')
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+        query_ids = dataset.query_image_ids
+        query_examples = dataset.prepare_query_examples(query_ids)
+        qimages = [i.qimage['pixel_values'].to(get_device()) for i in query_examples]
+        qimages = torch.cat(qimages, dim=0)
 
-        if image_embedding_model_name in ["resnet152", "resnext101", "efnet"]:
-            transform = T.Compose([
-                T.Resize((224, 224)),
-                T.ToTensor(),
-            ])
-            image_tensor = transform(image).unsqueeze(0).to(device)
-
-            with torch.no_grad():
-                embedding = image_embedding_model(image_tensor)
-            return embedding.cpu().numpy()
-
-        elif image_embedding_model_name.startswith("convnextv2"):
-            transform = T.Compose([
-                T.Resize((224, 224)),
-                T.ToTensor(),
-            ])
-            image_tensor = transform(image).unsqueeze(0).to(device)
-
-            with torch.no_grad():
-                embedding = image_embedding_model(image_tensor)
-
-            adaptive_pool = nn.AdaptiveAvgPool2d((1, 1)).to(device)
-            embedding = adaptive_pool(embedding)
-            embedding = embedding.reshape(embedding.size(0), -1)
-
-            return embedding.cpu().numpy()
-
-        elif image_embedding_model_name == "ViT":
-            from transformers import ViTImageProcessor
-            preprocess = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224-in21k')
-            inputs = preprocess(images=image, return_tensors="pt").to(device)
-
-            with torch.no_grad():
-                outputs = image_embedding_model(**inputs)
-
-            embedding = outputs.last_hidden_state[:, 0, :]  # [CLS]
-            return embedding.cpu().numpy()
-
-        else:
-            raise ValueError(f"단일 이미지 처리 미지원 모델: {image_embedding_model_name}")
+        with torch.no_grad():
+            outputs = image_embedding_model(qimages)
+        image_embeddings = outputs.last_hidden_state[:, 0, :]
+        image_embeddings_ndarray = image_embeddings.cpu().numpy()
+    elif image_embedding_model_name in ["convnextv2_large", "convnextv2_small", "convnextv2_base"]:
+        tokenizer = clip_tokenizer.build_tokenizer()
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
+        query_ids = dataset.query_image_ids
+        query_examples = dataset.prepare_query_examples(query_ids)
+        qimages = [q.qimage for q in query_examples]
+        qimages = torch.stack(qimages).to(get_device())
+        with torch.no_grad():
+            qembeds = image_embedding_model(qimages)
+        adaptive_pool = nn.AdaptiveAvgPool2d((1, 1)).to(get_device())  # 1x1 크기로 변환
+        qembeds = adaptive_pool(qembeds)
+        qembeds = qembeds.reshape(qembeds.size(0), -1)
+        image_embeddings_ndarray = qembeds.cpu().numpy()
+    elif image_embedding_model_name == "dinov2":
+        tokenizer = clip_tokenizer.build_tokenizer()
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
+        query_ids = dataset.query_image_ids
+        query_examples = dataset.prepare_query_examples(query_ids)
+        qimages = [q.qimage for q in query_examples]
+        qimages = torch.stack(qimages).to(get_device()).half()  # float16으로 변환
+        image_embedding_model = image_embedding_model.half()  # 모델도 float16으로 변환
+        with torch.no_grad():
+            qembeds = image_embedding_model(qimages)
+        image_embeddings_ndarray = qembeds.cpu().numpy()
+    elif image_embedding_model_name in ["siglip_so400", "siglip_large", "siglip2"]:
+        tokenizer = AutoTokenizer.from_pretrained(f"google/{image_embedding_model_name}-patch14-384")
+        preprocess = AutoProcessor.from_pretrained(f"google/{image_embedding_model_name}-patch14-384")
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+        query_ids = dataset.query_image_ids
+        query_examples = dataset.prepare_query_examples(query_ids)
+        qimages = [q.qimage for q in query_examples]
+        inputs = preprocess(images=qimages, return_tensors="pt", padding=True)
+        text_inputs = tokenizer([""] * len(qimages), return_tensors="pt", padding=True)
+        inputs.update(text_inputs)
+        inputs = {k: v.to(get_device()) for k, v in inputs.items()}
+        with torch.no_grad():
+            outputs = image_embedding_model(**inputs)
+        image_embeddings_ndarray = outputs.image_embeds.cpu().numpy()
     else:
-        # ✅ 기존처럼 Dataset 기반 로딩
-        if image_embedding_model_name == "magiclens_base" or image_embedding_model_name == "magiclens_large":
-            dataset = EselTreeDatasetForMagicLens(dataset_name="eseltree", tokenizer=tokenizer)
-            query_ids = dataset.query_image_ids
-            query_examples = dataset.prepare_query_examples(query_ids)
+        raise ValueError(f"Invalid embedding model name: {image_embedding_model_name}")
 
-            qimages = jnp.concatenate([i.qimage for i in query_examples], axis=0)
-            qtokens = jnp.concatenate([i.qtokens for i in query_examples], axis=0)
-            qembeds = image_embedding_model.apply(model_params, {"ids": qtokens, "image": qimages})[
-                "multimodal_embed_norm"
-            ]
-            return np.array(qembeds)
-
-        else:
-            dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
-            query_ids = dataset.query_image_ids
-            query_examples = dataset.prepare_query_examples(query_ids)
-
-            if image_embedding_model_name == "ViT":
-                qimages = [i.qimage['pixel_values'].to(device) for i in query_examples]
-                qimages = torch.cat(qimages, dim=0)
-                with torch.no_grad():
-                    outputs = image_embedding_model(qimages)
-                return outputs.last_hidden_state[:, 0, :].cpu().numpy()
-
-            else:
-                qimages = [q.qimage for q in query_examples]
-                qimages = torch.stack(qimages).to(device)
-                with torch.no_grad():
-                    embedding = image_embedding_model(qimages)
-
-                if image_embedding_model_name.startswith("convnextv2"):
-                    adaptive_pool = nn.AdaptiveAvgPool2d((1, 1)).to(device)
-                    embedding = adaptive_pool(embedding)
-                    embedding = embedding.reshape(embedding.size(0), -1)
-
-                return embedding.cpu().numpy()
-
+    return query_ids, image_embeddings_ndarray
 
 
 def get_intermediate_embeddings(model, images, target_layer):
