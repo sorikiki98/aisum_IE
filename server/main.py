@@ -41,8 +41,8 @@ async def embed_and_search_similar_images(
     try:
         image_bytes = await file.read()
 
-        project_root = Path(__file__).parent.parent.parent / "aisum"
-        save_dir = project_root/"output"/model_name/category1/category2
+        project_root = Path(__file__).parent.parent
+        save_dir = project_root / "output" / model_name / category1 / category2
         save_dir.mkdir(parents=True, exist_ok=True)
 
         extension = Path(file.filename).suffix
@@ -106,7 +106,7 @@ app.mount("/static", StaticFiles(directory=frontend_build_path / "static"), name
 
 app.mount(
     "/images",
-    StaticFiles(directory=Path(__file__).parent.parent.parent / "aisum" / "data"),
+    StaticFiles(directory=Path(__file__).parent.parent / "data"),
     name="images"
 )
 
