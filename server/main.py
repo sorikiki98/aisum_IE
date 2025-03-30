@@ -106,7 +106,7 @@ app.mount("/static", StaticFiles(directory=frontend_build_path / "static"), name
 
 app.mount(
     "/images",
-    StaticFiles(directory=Path(__file__).parent.parent / "data"),
+    StaticFiles(directory=Path(__file__).parent.parent / "data" / "eseltree" / "images"),
     name="images"
 )
 
