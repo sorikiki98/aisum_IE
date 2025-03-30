@@ -3,6 +3,7 @@ from dataset import EselTreeDatasetForMagicLens, EselTreeDatasetDefault
 from scenic.projects.baselines.clip import tokenizer as clip_tokenizer
 from pgvector_database import *
 from pathlib import Path
+from transformers import AutoTokenizer
 
 
 if __name__ == "__main__":
@@ -10,25 +11,38 @@ if __name__ == "__main__":
     # faiss_index_with_ids = load_or_create_faiss_index(image_embedding_model_name)
 
     params, dataset = None, None
-    tokenizer = clip_tokenizer.build_tokenizer()
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    batch_size = 512  # todo
+    batch_size = 128  # todo
 
     if image_embedding_model_name.startswith("magiclens"):
         image_embedding_model, params = load_image_embedding_model(image_embedding_model_name)
+        tokenizer = clip_tokenizer.build_tokenizer()
         dataset = EselTreeDatasetForMagicLens(dataset_name="eseltree", tokenizer=tokenizer)
     elif image_embedding_model_name.startswith("convnextv2"):
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
+        tokenizer = clip_tokenizer.build_tokenizer()
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
     elif image_embedding_model_name == 'vit':
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         preprocess = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224-in21k')
+        tokenizer = clip_tokenizer.build_tokenizer()
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
     elif image_embedding_model_name == 'dinov2':
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
-        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=None)
+    elif image_embedding_model_name == 'siglip_so400':
+        image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
+        preprocess = AutoProcessor.from_pretrained("google/siglip-so400m-patch14-384")
+        tokenizer = AutoTokenizer.from_pretrained("google/siglip-so400m-patch14-384")
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+    elif image_embedding_model_name == 'siglip_large':
+        image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
+        preprocess = AutoProcessor.from_pretrained("google/siglip-large-patch16-384")
+        tokenizer = AutoTokenizer.from_pretrained("google/siglip-large-patch16-384")
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
     else:
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
+        tokenizer = clip_tokenizer.build_tokenizer()
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
 
     len_index_examples = len(dataset.index_image_ids)
@@ -83,6 +97,15 @@ if __name__ == "__main__":
             with torch.no_grad():
                 batch_embeddings = image_embedding_model(iimages)
             batch_embeddings_ndarray = batch_embeddings.cpu().numpy()
+        elif image_embedding_model_name.startswith("siglip"):
+            batch_images = [i.iimage for i in batch_examples]
+            inputs = preprocess(images=batch_images, return_tensors="pt", padding=True)
+            text_inputs = tokenizer([""] * len(batch_images), return_tensors="pt", padding=True)
+            inputs.update(text_inputs)
+            inputs = {k: v.to(device) for k, v in inputs.items()}
+            with torch.no_grad():
+                outputs = image_embedding_model(**inputs)
+            batch_embeddings_ndarray = outputs.image_embeds.cpu().numpy()
         else:
             iimages = [i.iimage for i in batch_examples]
             iimages = torch.stack(iimages).to(device)

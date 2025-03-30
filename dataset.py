@@ -11,6 +11,7 @@ import jax.numpy as jnp
 import numpy as np
 import torch
 from PIL import Image
+from transformers import AutoProcessor
 
 
 @dataclass
@@ -76,7 +77,9 @@ def process_img_to_torch(image_path: str, size: int, preprocess=None) -> torch.T
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
         return preprocess(img)
-    else:
+    elif "SiglipProcessor" in str(type(preprocess)):  # SigLIP processor인 경우
+        return img
+    else:  # 다른 모델들의 경우
         return preprocess(img, return_tensors="pt", input_data_format="channels_last")
 
 
