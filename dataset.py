@@ -11,6 +11,7 @@ import jax.numpy as jnp
 import numpy as np
 import torch
 from PIL import Image
+from transformers import AutoProcessor
 
 
 @dataclass
@@ -76,7 +77,9 @@ def process_img_to_torch(image_path: str, size: int, preprocess=None) -> torch.T
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
         return preprocess(img)
-    else:
+    elif "SiglipProcessor" in str(type(preprocess)):  # SigLIP processor인 경우
+        return img
+    else:  # 다른 모델들의 경우
         return preprocess(img, return_tensors="pt", input_data_format="channels_last")
 
 
@@ -84,12 +87,15 @@ class EselTreeDatasetForMagicLens(Dataset):
     def __init__(self, dataset_name: str, tokenizer: Any):
         self.dataset_name = dataset_name
         self.tokenizer = tokenizer
-        index_image_folder = "./data"
+        
+        # Use absolute paths
+        project_root = Path(__file__).parent
+        index_image_folder = project_root / "data" / "eseltree" / "images"
         index_image_files = sorted(Path(index_image_folder).glob("**/*.jpg"))
         index_image_ids_with_cats = [str(file).split(".")[0] for file in index_image_files]
         index_image_ids = [file.stem for file in index_image_files]
 
-        query_image_folder = "./data"
+        query_image_folder = project_root / "data" / "test" / "images"
         query_image_files = sorted(Path(query_image_folder).glob("*.jpg"))
         query_image_ids = [file.stem for file in query_image_files]
 
@@ -147,15 +153,17 @@ class EselTreeDatasetForMagicLens(Dataset):
 
 class EselTreeDatasetDefault(Dataset):
     def __init__(self, dataset_name: str, tokenizer: Any, preprocess=None):
-
         self.dataset_name = dataset_name
         self.tokenizer = tokenizer
-        index_image_folder = "./data"  # todo
+        
+        # Use absolute paths
+        project_root = Path(__file__).parent
+        index_image_folder = project_root / "data" / "eseltree" / "images"
         index_image_files = sorted(Path(index_image_folder).glob("**/*.jpg"))
         index_image_ids_with_cats = [str(file).split(".")[0] for file in index_image_files]
         index_image_ids = [file.stem for file in index_image_files]
 
-        query_image_folder = "./data"  # todo
+        query_image_folder = project_root / "data" / "test" / "images"
         query_image_files = sorted(Path(query_image_folder).glob("*.jpg"))
         query_image_ids = [file.stem for file in query_image_files]
 
