@@ -12,7 +12,7 @@ if __name__ == "__main__":
 
     params, dataset = None, None
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    batch_size = 128  # todo
+    batch_size = 64 # todo
 
     if image_embedding_model_name.startswith("magiclens"):
         image_embedding_model, params = load_image_embedding_model(image_embedding_model_name)
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     elif image_embedding_model_name == 'dinov2':
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=None)
-    elif image_embedding_model_name == 'siglip_so400m':
+    elif image_embedding_model_name == 'siglip_so400':
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         preprocess = AutoProcessor.from_pretrained("google/siglip-so400m-patch14-384")
         tokenizer = AutoTokenizer.from_pretrained("google/siglip-so400m-patch14-384")
@@ -39,6 +39,11 @@ if __name__ == "__main__":
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         preprocess = AutoProcessor.from_pretrained("google/siglip-large-patch16-384")
         tokenizer = AutoTokenizer.from_pretrained("google/siglip-large-patch16-384")
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+    elif image_embedding_model_name == 'siglip2':
+        image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
+        preprocess = AutoProcessor.from_pretrained("google/siglip2-so400m-patch14-384")
+        tokenizer = AutoTokenizer.from_pretrained("google/siglip2-so400m-patch14-384")
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
     else:
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
