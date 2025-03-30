@@ -29,3 +29,4 @@ class ResNext101(nn.Module):
         normalized_x = F.normalize(x, dim=1)
 
         return normalized_x
+
