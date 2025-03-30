@@ -81,7 +81,8 @@ async def embed_and_search_similar_images(
         })
 
     except Exception as e:
-        print(f"❌ 처리 실패: {e}")
+        traceback.print_exc()
+        print(f"❌ 처리 실패: {e.args}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 # ✅ 정적 파일 경로: 프론트엔드 빌드
