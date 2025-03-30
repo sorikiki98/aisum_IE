@@ -23,7 +23,7 @@ if __name__ == "__main__":
     params, dataset = None, None
     tokenizer = clip_tokenizer.build_tokenizer()
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    batch_size = 4
+    batch_size = 32
 
     if image_embedding_model_name.startswith("magiclens"):
         image_embedding_model, params = load_image_embedding_model(image_embedding_model_name)
@@ -40,6 +40,14 @@ if __name__ == "__main__":
         preprocess = Blip2Processor.from_pretrained('Salesforce/blip2-flan-t5-xxl')
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess,
                                          prompt="Question: Describe the product. Answer:")
+    elif image_embedding_model_name == 'openai_clip':
+        image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
+        preprocess = image_embedding_model.preprocess
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+    elif image_embedding_model_name == 'laion_clip':
+        image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
+        preprocess = image_embedding_model.preprocess
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
     else:
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
@@ -95,6 +103,14 @@ if __name__ == "__main__":
                 outputs = image_embedding_model.get_qformer_features(iimages).last_hidden_state
                 pooled_outputs = torch.mean(outputs, dim=1)
             batch_embeddings_ndarray = pooled_outputs.cpu().numpy()
+        elif image_embedding_model_name == 'openai_clip':
+            iimages = [i.iimage for i in batch_examples]
+            iimage_tensors = torch.stack(iimages).to(device)
+            batch_embeddings_ndarray = image_embedding_model.embed_images(iimage_tensors).cpu().numpy()
+        elif image_embedding_model_name == 'laion_clip':
+            iimages = [i.iimage for i in batch_examples]
+            iimage_tensors = torch.stack(iimages).to(device)
+            batch_embeddings_ndarray = image_embedding_model.embed_images(iimage_tensors).cpu().numpy()
         else:
             iimages = [i.iimage for i in batch_examples]
             iimages = torch.stack(iimages).to(device)

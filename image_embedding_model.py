@@ -12,6 +12,8 @@ from flax import serialization
 from models.resnet import ResNet152
 from models.resnext import ResNext101
 from models.magiclens import MagicLens
+from models.openai_clip import OpenAICLIP
+from models.laion_clip import LaionCLIP
 from dataset import EselTreeDatasetForMagicLens, EselTreeDatasetDefault
 from scenic.projects.baselines.clip import tokenizer as clip_tokenizer
 from transformers import ViTModel, ViTImageProcessor, Blip2Processor
@@ -37,6 +39,10 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
         return 1536
     elif image_embedding_model_name == "blip2":
         return 768
+    elif image_embedding_model_name == "openai_clip":
+        return 768
+    elif image_embedding_model_name == "laion_clip":
+        return 1024
     else:
         raise ValueError("Invalid embedding model name")
 
@@ -44,10 +50,10 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
 def get_image_embedding_model_name():
     image_embedding_model_name = input("Enter embedding model name (vit, resnet152, efnet, magiclens_base, "
                                        "magiclens_large, convnextv2_small, convnextv2_base, convnextv2_large, "
-                                       "resnext101, blip2): ")
+                                       "resnext101, blip2, openai_clip, laion_clip): ")
     if image_embedding_model_name not in ["vit", "efnet", "resnet152", "magiclens_base", "magiclens_large",
                                           "convnextv2_small", "convnextv2_base", "convnextv2_large",
-                                          "resnext101", "blip2"]:
+                                          "resnext101", "blip2", "openai_clip", "laion_clip"]:
         raise ValueError("Invalid embedding model name")
     return image_embedding_model_name
 
@@ -126,7 +132,12 @@ def load_image_embedding_model(image_embedding_model_name):
         model.to(device)
         model.eval()
         return model, None
-
+    elif image_embedding_model_name == "openai_clip":
+        model = OpenAICLIP()
+        return model, None
+    elif image_embedding_model_name == "laion_clip":
+        model = LaionCLIP()
+        return model, None
 
 def embed_images(image_embedding_model, image_embedding_model_name, model_params=None):
     tokenizer = clip_tokenizer.build_tokenizer()
@@ -142,7 +153,6 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         ]
         image_embeddings_ndarray = np.array(qembeds)
     elif image_embedding_model_name == "resnet152" or image_embedding_model_name == "resnext101" or image_embedding_model_name == "efnet":
-        tokenizer = clip_tokenizer.build_tokenizer()
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
         query_ids = dataset.query_image_ids
         query_examples = dataset.prepare_query_examples(query_ids)
@@ -153,7 +163,6 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
             qembeds = image_embedding_model(qimages)
         image_embeddings_ndarray = qembeds.cpu().numpy()
     elif image_embedding_model_name == "vit":
-        tokenizer = clip_tokenizer.build_tokenizer()
         preprocess = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224-in21k')
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
         query_ids = dataset.query_image_ids
@@ -166,7 +175,6 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         image_embeddings = outputs.last_hidden_state[:, 0, :]
         image_embeddings_ndarray = image_embeddings.cpu().numpy()
     elif image_embedding_model_name in ["convnextv2_large", "convnextv2_small", "convnextv2_base"]:
-        tokenizer = clip_tokenizer.build_tokenizer()
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
         query_ids = dataset.query_image_ids
         query_examples = dataset.prepare_query_examples(query_ids)
@@ -190,6 +198,22 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
             outputs = image_embedding_model.get_qformer_features(qimages).last_hidden_state
             pooled_outputs = torch.mean(outputs, dim=1)
         image_embeddings_ndarray = pooled_outputs.cpu().numpy()
+    elif image_embedding_model_name == "openai_clip":
+        preprocess = OpenAICLIP().preprocess
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+        query_ids = dataset.query_image_ids
+        query_examples = dataset.prepare_query_examples(query_ids)
+        qimages = [i.qimage for i in query_examples]
+        qimage_tensors = torch.stack(qimages).to(get_device())
+        image_embeddings_ndarray = image_embedding_model.embed_images(qimage_tensors).cpu().numpy()
+    elif image_embedding_model_name == "laion_clip":
+        preprocess = LaionCLIP().preprocess
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+        query_ids = dataset.query_image_ids
+        query_examples = dataset.prepare_query_examples(query_ids)
+        qimages = [i.qimage for i in query_examples]
+        qimage_tensors = torch.stack(qimages).to(get_device())
+        image_embeddings_ndarray = image_embedding_model.embed_images(qimage_tensors).cpu().numpy()
     else:
         raise ValueError(f"Invalid embedding model name: {image_embedding_model_name}")
 

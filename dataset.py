@@ -78,7 +78,8 @@ def process_img_to_torch(image_path: str, size: int, preprocess=None, prompt=Non
         return preprocess(img)
     else:
         if prompt is None:
-            return preprocess(img, return_tensors="pt", input_data_format="channels_last")
+            # return preprocess(img, return_tensors="pt", input_data_format="channels_last")
+            return preprocess(img)
         else:
             return preprocess(images=img, return_tensors="pt", text=prompt)
 
