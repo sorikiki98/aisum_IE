@@ -38,7 +38,7 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
         return 1536
     elif image_embedding_model_name == "dinov2":
         return 1536
-    elif image_embedding_model_name == "siglip_so400":
+    elif image_embedding_model_name == "siglip_so400m":
         return 1152
     elif image_embedding_model_name == "siglip_large":
         return 1024
@@ -49,10 +49,10 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
 def get_image_embedding_model_name():
     image_embedding_model_name = input("Enter embedding model name (vit, resnet152, efnet, magiclens_base, "
                                        "magiclens_large, convnextv2_small, convnextv2_base, convnextv2_large, "
-                                       "resnext101, dinov2, siglip_so400, siglip_large): ")
+                                       "resnext101, dinov2, siglip_so400m, siglip_large): ")
     if image_embedding_model_name not in ["vit", "efnet", "resnet152", "magiclens_base", "magiclens_large",
                                           "convnextv2_small", "convnextv2_base", "convnextv2_large",
-                                          "resnext101", "dinov2", "siglip_so400", "siglip_large"]:
+                                          "resnext101", "dinov2", "siglip_so400m", "siglip_large"]:
         raise ValueError("Invalid embedding model name")
     return image_embedding_model_name
 
@@ -131,7 +131,7 @@ def load_image_embedding_model(image_embedding_model_name):
         model.to(device)
         model.eval()
         return model, None
-    elif image_embedding_model_name == "siglip_so400":
+    elif image_embedding_model_name == "siglip_so400m":
         model = AutoModel.from_pretrained("google/siglip-so400m-patch14-384")
         device = get_device()
         model.to(device)
@@ -207,7 +207,7 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         with torch.no_grad():
             qembeds = image_embedding_model(qimages)
         image_embeddings_ndarray = qembeds.cpu().numpy()
-    elif image_embedding_model_name == "siglip_so400":
+    elif image_embedding_model_name == "siglip_so400m":
         tokenizer = AutoTokenizer.from_pretrained("google/siglip-so400m-patch14-384")
         preprocess = AutoProcessor.from_pretrained("google/siglip-so400m-patch14-384")
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)

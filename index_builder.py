@@ -30,7 +30,7 @@ if __name__ == "__main__":
     elif image_embedding_model_name == 'dinov2':
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=None)
-    elif image_embedding_model_name == 'siglip_so400':
+    elif image_embedding_model_name == 'siglip_so400m':
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         preprocess = AutoProcessor.from_pretrained("google/siglip-so400m-patch14-384")
         tokenizer = AutoTokenizer.from_pretrained("google/siglip-so400m-patch14-384")
