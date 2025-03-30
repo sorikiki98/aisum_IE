@@ -86,8 +86,15 @@ function App() {
 
           <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
             <select value={model} onChange={(e) => setModel(e.target.value)}>
-              <option value="convnextv2_base">ConvNeXt V2 Base</option>
-              {/* 다른 모델 추가 시 여기 확장 */}
+              <option value="efnet">EfficientNetV2</option>
+              <option value="vit">ViT</option>
+              <option value="convnextv2_base">ConvNeXtV2 Base</option>
+              <option value="convnextv2_large">ConvNeXtV2 Large</option>
+              <option value="magiclens_base">Magiclens Base</option>
+              <option value="magiclens_large">Magiclens Large</option>
+              <option value="openai_clip">openai_clip</option>
+              <option value="laion_clip">laion_clip</option>
+              <option value="blip2">blip2</option>
             </select>
             <button onClick={handleEmbed} disabled={!selectedFile}>임베딩 실행</button>
             <button onClick={handleReset}>리셋</button>

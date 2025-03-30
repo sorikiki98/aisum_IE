@@ -89,7 +89,7 @@ class EselTreeDatasetForMagicLens(Dataset):
         index_image_ids_with_cats = [str(file).split(".")[0] for file in index_image_files]
         index_image_ids = [file.stem for file in index_image_files]
 
-        query_image_folder = "./data"
+        query_image_folder = "../data/test/images"
         query_image_files = sorted(Path(query_image_folder).glob("*.jpg"))
         query_image_ids = [file.stem for file in query_image_files]
 
@@ -155,7 +155,7 @@ class EselTreeDatasetDefault(Dataset):
         index_image_ids_with_cats = [str(file).split(".")[0] for file in index_image_files]
         index_image_ids = [file.stem for file in index_image_files]
 
-        query_image_folder = "./data"  # todo
+        query_image_folder = "../data/test/images"  # todo
         query_image_files = sorted(Path(query_image_folder).glob("*.jpg"))
         query_image_ids = [file.stem for file in query_image_files]
 
