@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from uuid import uuid4
 
-# 🔁 경로 등록 (루트 경로에 있는 코드들을 import 가능하게)
+
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from image_embedding_model import (
@@ -14,11 +14,10 @@ from image_embedding_model import (
     embed_images,
 )
 from pgvector_database import search_similar_vectors
-from product_matching import save_retrieved_images_by_ids  # ✅ 복사 함수
+from product_matching import save_retrieved_images_by_ids
 
 app = FastAPI()
 
-# ✅ CORS 허용 설정
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -27,7 +26,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ✅ /embed API: 업로드 + 임베딩 + 검색 + 복사
 @app.post("/embed/")
 async def embed_and_search_similar_images(
     file: UploadFile = File(...),
@@ -43,9 +41,8 @@ async def embed_and_search_similar_images(
     try:
         image_bytes = await file.read()
 
-        # ✅ 업로드 이미지 저장
-        project_root = Path("/mnt/c/Users/SMU/Documents/aisum_IE")
-        save_dir = project_root / "data" / category1 / category2
+        project_root = Path(__file__).parent.parent.parent / "aisum"
+        save_dir = project_root/"output"/model_name/category1/category2
         save_dir.mkdir(parents=True, exist_ok=True)
 
         extension = Path(file.filename).suffix
@@ -55,7 +52,6 @@ async def embed_and_search_similar_images(
         with open(save_path, "wb") as f:
             f.write(image_bytes)
 
-        # ✅ 다시 불러와서 임베딩
         with open(save_path, "rb") as f:
             image_bytes = f.read()
 
@@ -110,7 +106,7 @@ app.mount("/static", StaticFiles(directory=frontend_build_path / "static"), name
 
 app.mount(
     "/images",
-    StaticFiles(directory="/mnt/c/Users/SMU/Documents/aisum_IE/data"),  # ✅ 이 부분 중요!!
+    StaticFiles(directory=Path(__file__).parent.parent.parent / "aisum" / "data"),
     name="images"
 )
 
