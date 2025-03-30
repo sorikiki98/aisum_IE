@@ -43,6 +43,11 @@ if __name__ == "__main__":
         print("🧪 dataset 생성 시작")
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
         print("✅ dataset 생성 완료")
+    elif image_embedding_model_name == "swin":
+        image_embedding_model, preprocess = load_image_embedding_model("swin_base_patch4_window7_224")
+        print("🧪 dataset 생성 시작")
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+        print("✅ dataset 생성 완료")
     else:
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
@@ -99,6 +104,12 @@ if __name__ == "__main__":
             with torch.no_grad():
                 batch_embeddings = image_embedding_model(iimages)
                 batch_embeddings = batch_embeddings / batch_embeddings.norm(dim=-1, keepdim=True)  # (optional) cosine similarity정규화
+            batch_embeddings_ndarray = batch_embeddings.cpu().numpy()
+        elif image_embedding_model_name == "swin":
+            iimages = [i.iimage for i in batch_examples]
+            iimages = torch.stack(iimages).to(device)
+            with torch.no_grad():
+                batch_embeddings = image_embedding_model(iimages)
             batch_embeddings_ndarray = batch_embeddings.cpu().numpy()
         else:
             iimages = [i.iimage for i in batch_examples]

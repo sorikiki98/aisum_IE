@@ -20,6 +20,9 @@ import sys
 sys.path.append("/home/jiwoo/magiclens/aisum_IE/unicom")  # unicom이 있는 상위 폴더
 import unicom
 
+from timm import create_model
+from timm.data import create_transform
+
 def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
     if image_embedding_model_name == "vit":
         return 768
@@ -39,6 +42,8 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
         return 1536
     elif image_embedding_model_name == "unicom":
         return 512  # ViT-B/32 기준
+    elif image_embedding_model_name == "swin":
+        return 1024  
     else:
         raise ValueError("Invalid embedding model name")
 
@@ -46,10 +51,10 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
 def get_image_embedding_model_name():
     image_embedding_model_name = input("Enter embedding model name (vit, resnet152, efnet, magiclens_base, "
                                        "magiclens_large, convnextv2_small, convnextv2_base, convnextv2_large, "
-                                       "resnext101, unicom): ")
+                                       "resnext101, unicom, swin): ")
     if image_embedding_model_name not in ["vit", "efnet", "resnet152", "magiclens_base", "magiclens_large",
                                           "convnextv2_small", "convnextv2_base", "convnextv2_large",
-                                          "resnext101", "unicom"]:
+                                          "resnext101", "unicom", "swin"]:
         raise ValueError("Invalid embedding model name")
     return image_embedding_model_name
 
@@ -61,6 +66,7 @@ def get_device():
 
 
 def load_image_embedding_model(image_embedding_model_name):
+    print(f"📌 모델 이름 들어옴: {image_embedding_model_name}")
     if image_embedding_model_name == "vit":
         model = ViTModel.from_pretrained('google/vit-base-patch16-224-in21k')
         device = get_device()
@@ -128,6 +134,16 @@ def load_image_embedding_model(image_embedding_model_name):
         model.to(device)
         model.eval()
         return model, preprocess
+    elif image_embedding_model_name == "swin_base_patch4_window7_224" or image_embedding_model_name == "swin":
+        model = create_model("swin_base_patch4_window7_224", pretrained=True, num_classes=0)  # classification head 제거
+        device = get_device()
+        model.to(device)
+        model.eval()
+        transform = create_transform(
+            input_size=(3, 224, 224),
+            is_training=False
+        )
+        return model, transform
 
 
 def embed_images(image_embedding_model, image_embedding_model_name, model_params=None):
@@ -172,6 +188,7 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
         query_ids = dataset.query_image_ids
         query_examples = dataset.prepare_query_examples(query_ids)
+
         qimages = [q.qimage for q in query_examples]
         qimages = torch.stack(qimages).to(get_device())
         with torch.no_grad():
@@ -181,7 +198,8 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         qembeds = qembeds.reshape(qembeds.size(0), -1)
         image_embeddings_ndarray = qembeds.cpu().numpy()
     elif image_embedding_model_name == "unicom":
-        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=clip_tokenizer.build_tokenizer(), preprocess=model_params)
+        tokenizer = clip_tokenizer.build_tokenizer()
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=model_params)
         query_ids = dataset.query_image_ids
         query_examples = dataset.prepare_query_examples(query_ids)
         
@@ -191,7 +209,17 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         with torch.no_grad():
             qembeds = image_embedding_model(qimages)
             qembeds = qembeds / qembeds.norm(dim=-1, keepdim=True)  # optional: 정규화
-
+        image_embeddings_ndarray = qembeds.cpu().numpy()
+    elif image_embedding_model_name == "swin":
+        tokenizer = clip_tokenizer.build_tokenizer()
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=model_params)
+        query_ids = dataset.query_image_ids
+        query_examples = dataset.prepare_query_examples(query_ids)
+        
+        qimages = [q.qimage for q in query_examples]
+        qimages = torch.stack(qimages).to(get_device())
+        with torch.no_grad():
+            qembeds = image_embedding_model(qimages)
         image_embeddings_ndarray = qembeds.cpu().numpy()
     else:
         raise ValueError(f"Invalid embedding model name: {image_embedding_model_name}")
