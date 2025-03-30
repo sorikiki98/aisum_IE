@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+.env
+
+# VSCode
+.vscode/
+
+# Node
+node_modules/
+build/
+
+# 기타
+outputs/
+data/
+*.pkl
+*.db
