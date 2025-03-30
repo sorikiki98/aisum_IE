@@ -17,9 +17,8 @@ def find_similar_product_ids(image_embedding_model,
 
 
 def save_retrieved_images_by_ids(image_embedding_model_name, all_batch_ids, all_batch_similarities, category1, category2):
-    # ✅ WSL 경로에 맞게 프로젝트 루트 고정
-    project_root = Path("/mnt/c/Users/SMU/Documents/aisum_IE")
-    data_root = project_root / "data"
+    project_root = Path(__file__).parent
+    data_root = project_root / "data" / "eseltree" / "images"
 
     for i, batch_ids in enumerate(all_batch_ids):
         # 분석용 outputs 폴더
@@ -37,12 +36,9 @@ def save_retrieved_images_by_ids(image_embedding_model_name, all_batch_ids, all_
                 save_path = retrieved_image_folder / f"top_{j + 1}_{all_batch_similarities[i][j]}.jpg"
                 image.save(save_path)
 
-                # ✅ 같은 파일이 아닐 때만 복사
                 if original_path != public_image_path:
                     public_image_path.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy(str(original_path), str(public_image_path))
-
-                print(f"✅ 복사 완료: {public_image_path}")
             else:
                 print(f"❌ 원본 이미지 없음: {original_path}")
 
