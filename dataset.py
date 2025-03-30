@@ -210,4 +210,3 @@ class EselTreeDatasetDefault(Dataset):
         qtokens = np.array(self.tokenizer(qtext))
         return QueryExample(qid=query_img_id, qtokens=qtokens, qimage=ima, target_iid=0, retrieved_iids=[],
                             retrieved_scores=[])
-                            

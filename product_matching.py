@@ -44,23 +44,29 @@ def save_retrieved_images_by_ids(image_embedding_model_name, all_batch_ids, all_
 
 
 def find_similar_product(image_embedding_model, image_embedding_model_name, category1, category2, model_params=None):
-    query_embeddings = embed_images(image_embedding_model, image_embedding_model_name, model_params)
+    query_ids, query_embeddings = embed_images(image_embedding_model, image_embedding_model_name, model_params)
     ids, category1s, category2s, similarities = search_similar_vectors(
-        image_embedding_model_name,
-        query_embeddings,
-        category1,
-        category2
+        image_embedding_model_name=image_embedding_model_name,
+        query_ids=query_ids,
+        query_embeddings=query_embeddings,
+        category1=category1,
+        category2=category2
     )
     return ids, similarities
 
 
-if __name__ == "__main__":
-    image_embedding_model_name = get_image_embedding_model_name()
+def main(model_name=None, category1=None, category2=None):
+    # For web interface, model_name is required
+    if model_name is None:
+        raise ValueError("model_name is required")
 
-    category1 = input("Enter category1 (or press Enter to skip): ").strip() or None
-    category2 = input("Enter category2 (or press Enter to skip): ").strip() or None
+    print_pgvector_info(model_name)
+    image_embedding_model, params = load_image_embedding_model(model_name)
+    all_ids, all_similarities = find_similar_product(image_embedding_model, model_name, category1, category2, params)
+    save_retrieved_images_by_ids(model_name, all_ids, all_similarities, category1, category2)
+    
+    return {
+        'result_ids': all_ids,
+        'result_distances': all_similarities
+    }
 
-    print_pgvector_info(image_embedding_model_name)
-    image_embedding_model, params = load_image_embedding_model(image_embedding_model_name)
-    all_ids, all_similarities = find_similar_product(image_embedding_model, image_embedding_model_name, category1, category2, params)
-    save_retrieved_images_by_ids(image_embedding_model_name, all_ids, all_similarities, category1, category2)
