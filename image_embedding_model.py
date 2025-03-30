@@ -51,10 +51,10 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
 def get_image_embedding_model_name():
     image_embedding_model_name = input("Enter embedding model name (vit, resnet152, efnet, magiclens_base, "
                                        "magiclens_large, convnextv2_small, convnextv2_base, convnextv2_large, "
-                                       "resnext101, dinov2, siglip_so400, siglip_large, siglip2): ")
+                                       "resnext101, dinov2, siglip_so400m, siglip_large, siglip2): ")
     if image_embedding_model_name not in ["vit", "efnet", "resnet152", "magiclens_base", "magiclens_large",
                                           "convnextv2_small", "convnextv2_base", "convnextv2_large",
-                                          "resnext101", "dinov2", "siglip_so400", "siglip_large", "siglip2"]:
+                                          "resnext101", "dinov2", "siglip_so400m", "siglip_large", "siglip2"]:
         raise ValueError("Invalid embedding model name")
     return image_embedding_model_name
 
@@ -133,7 +133,7 @@ def load_image_embedding_model(image_embedding_model_name):
         model.to(device)
         model.eval()
         return model, None
-    elif image_embedding_model_name == "siglip_so400":
+    elif image_embedding_model_name == "siglip_so400m":
         model = AutoModel.from_pretrained("google/siglip-so400m-patch14-384")
         device = get_device()
         model.to(device)
@@ -156,12 +156,11 @@ def load_image_embedding_model(image_embedding_model_name):
 
 
 def embed_images(image_embedding_model, image_embedding_model_name, model_params=None):
+    tokenizer = clip_tokenizer.build_tokenizer()
     if image_embedding_model_name == "magiclens_base" or image_embedding_model_name == "magiclens_large":
-        tokenizer = clip_tokenizer.build_tokenizer()
         dataset = EselTreeDatasetForMagicLens(dataset_name="eseltree", tokenizer=tokenizer)
         query_ids = dataset.query_image_ids
         query_examples = dataset.prepare_query_examples(query_ids)
-
         qimages = jnp.concatenate([i.qimage for i in query_examples], axis=0)
         qtokens = jnp.concatenate([i.qtokens for i in query_examples], axis=0)
         qembeds = image_embedding_model.apply(model_params, {"ids": qtokens, "image": qimages})[
@@ -187,6 +186,7 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         query_examples = dataset.prepare_query_examples(query_ids)
         qimages = [i.qimage['pixel_values'].to(get_device()) for i in query_examples]
         qimages = torch.cat(qimages, dim=0)
+
         with torch.no_grad():
             outputs = image_embedding_model(qimages)
         image_embeddings = outputs.last_hidden_state[:, 0, :]
@@ -215,7 +215,7 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         with torch.no_grad():
             qembeds = image_embedding_model(qimages)
         image_embeddings_ndarray = qembeds.cpu().numpy()
-    elif image_embedding_model_name == "siglip_so400":
+    elif image_embedding_model_name == "siglip_so400m":  
         tokenizer = AutoTokenizer.from_pretrained("google/siglip-so400m-patch14-384")
         preprocess = AutoProcessor.from_pretrained("google/siglip-so400m-patch14-384")
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)

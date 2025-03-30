@@ -5,7 +5,6 @@ from pgvector_database import *
 from pathlib import Path
 from transformers import AutoTokenizer
 
-
 if __name__ == "__main__":
     image_embedding_model_name = get_image_embedding_model_name()
     # faiss_index_with_ids = load_or_create_faiss_index(image_embedding_model_name)
@@ -122,4 +121,3 @@ if __name__ == "__main__":
         # print_faiss_index_info(faiss_index_with_ids)
         insert_image_embeddings_into_postgres(image_embedding_model_name, batch_ids, batch_embeddings_ndarray,
                                               batch_cat1s, batch_cat2s)
-
