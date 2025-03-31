@@ -93,7 +93,7 @@ def load_image_embedding_model(image_embedding_model_name):
             "image": jnp.ones((1, 224, 224, 3), dtype=jnp.float32),
         }
         params = model.init(rng, dummpy_input)
-        with open(f"./models/magic_lens_clip_{model_size}.pkl", "rb") as f:
+        with open(f"../models/magic_lens_clip_{model_size}.pkl", "rb") as f:
             model_bytes = pickle.load(f)
         params = serialization.from_bytes(params, model_bytes)
         params = jax.device_put(params)
