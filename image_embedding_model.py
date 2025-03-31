@@ -1,24 +1,24 @@
+import pickle
+import sys
+
 import jax
 import jax.numpy as jnp
-
-from torchvision import models
+import numpy as np
+import timm
 import torch
 import torch.nn as nn
-import numpy as np
-import pickle
-import timm
-
 from flax import serialization
-from models.resnet import ResNet152
-from models.resnext import ResNext101
-from models.magiclens import MagicLens
-from dataset import EselTreeDatasetForMagicLens, EselTreeDatasetDefault
 from scenic.projects.baselines.clip import tokenizer as clip_tokenizer
+from torchvision import models
 from transformers import ViTModel, ViTImageProcessor
 
-import sys
-sys.path.append("/home/jiwoo/magiclens/aisum_IE/unicom")  # unicom이 있는 상위 폴더
 import unicom
+from dataset import EselTreeDatasetForMagicLens, EselTreeDatasetDefault
+from models.magiclens import MagicLens
+from models.resnet import ResNet152
+from models.resnext import ResNext101
+
+sys.path.append("/home/jiwoo/magiclens/aisum_IE/unicom_all")  # unicom이 있는 상위 폴더
 
 from timm import create_model
 from timm.data import create_transform
@@ -40,7 +40,7 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
         return 1024
     elif image_embedding_model_name == "convnextv2_large":
         return 1536
-    elif image_embedding_model_name == "unicom":
+    elif image_embedding_model_name == "unicom_all":
         return 512  # ViT-B/32 기준
     elif image_embedding_model_name == "swin":
         return 1024  
@@ -51,10 +51,10 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
 def get_image_embedding_model_name():
     image_embedding_model_name = input("Enter embedding model name (vit, resnet152, efnet, magiclens_base, "
                                        "magiclens_large, convnextv2_small, convnextv2_base, convnextv2_large, "
-                                       "resnext101, unicom, swin): ")
+                                       "resnext101, unicom_all, swin): ")
     if image_embedding_model_name not in ["vit", "efnet", "resnet152", "magiclens_base", "magiclens_large",
                                           "convnextv2_small", "convnextv2_base", "convnextv2_large",
-                                          "resnext101", "unicom", "swin"]:
+                                          "resnext101", "unicom_all", "swin"]:
         raise ValueError("Invalid embedding model name")
     return image_embedding_model_name
 
@@ -66,7 +66,6 @@ def get_device():
 
 
 def load_image_embedding_model(image_embedding_model_name):
-    print(f"📌 모델 이름 들어옴: {image_embedding_model_name}")
     if image_embedding_model_name == "vit":
         model = ViTModel.from_pretrained('google/vit-base-patch16-224-in21k')
         device = get_device()
@@ -128,8 +127,8 @@ def load_image_embedding_model(image_embedding_model_name):
         return model, None
     elif image_embedding_model_name == "regnet":
         pass
-    elif image_embedding_model_name == "unicom":
-        model, preprocess = unicom.load("ViT-B/32") 
+    elif image_embedding_model_name == "unicom_all":
+        model, preprocess = unicom.load("ViT-B/32")
         device = get_device()
         model.to(device)
         model.eval()
@@ -197,7 +196,7 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         qembeds = adaptive_pool(qembeds)
         qembeds = qembeds.reshape(qembeds.size(0), -1)
         image_embeddings_ndarray = qembeds.cpu().numpy()
-    elif image_embedding_model_name == "unicom":
+    elif image_embedding_model_name == "unicom_all":
         tokenizer = clip_tokenizer.build_tokenizer()
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=model_params)
         query_ids = dataset.query_image_ids

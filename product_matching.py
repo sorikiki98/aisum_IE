@@ -19,11 +19,12 @@ def find_similar_product_ids(image_embedding_model,
 
     return ids, similarities
 
+
 def save_retrieved_images_by_ids(image_embedding_model_name, all_batch_ids, all_batch_similarities,
                                  all_batch_cat1s, all_batch_cat2s):
     for batch_index, (batch_ids, cat1_list, cat2_list, sim_list) in enumerate(
-        zip(all_batch_ids, all_batch_cat1s, all_batch_cat2s, all_batch_similarities)):
-        
+            zip(all_batch_ids, all_batch_cat1s, all_batch_cat2s, all_batch_similarities)):
+
         retrieved_image_folder = f"./outputs/{image_embedding_model_name}/{batch_index + 1}"
 
         if os.path.exists(retrieved_image_folder):
@@ -31,7 +32,7 @@ def save_retrieved_images_by_ids(image_embedding_model_name, all_batch_ids, all_
         os.makedirs(retrieved_image_folder, exist_ok=True)
 
         for idx, (img_id, cat1, cat2, similarity) in enumerate(zip(batch_ids, cat1_list, cat2_list, sim_list)):
-            file_path = os.path.join("./data",cat1,cat2,f"{img_id}.jpg")
+            file_path = os.path.join("./data/eseltree/images", cat1, cat2, f"{img_id}.jpg")
 
             if os.path.exists(file_path):
                 image = Image.open(file_path)
