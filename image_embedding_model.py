@@ -255,3 +255,4 @@ def feature_maps_to_embeddings(feature_maps):
     pooled_features = global_average_pooling(feature_maps)
     embedding_vectors = pooled_features.view(pooled_features.size(0), -1)
     return embedding_vectors
+
