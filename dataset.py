@@ -77,7 +77,8 @@ def process_img_to_torch(image_path: str, size: int, preprocess=None) -> torch.T
         ])
         return preprocess(img)
     else:
-        return preprocess(img, return_tensors="pt", input_data_format="channels_last")
+        # preprocess를 사용하는 모델 -> ViT 모델은 PIL.Image 객체로 받음 / imagebind 모델은 image_path로 받음
+        return preprocess(image_path, return_tensors="pt", input_data_format="channels_last")
 
 
 class EselTreeDatasetForMagicLens(Dataset):
@@ -155,7 +156,7 @@ class EselTreeDatasetDefault(Dataset):
         index_image_ids_with_cats = [str(file).split(".")[0] for file in index_image_files]
         index_image_ids = [file.stem for file in index_image_files]
 
-        query_image_folder = "../data/test/images"  # todo
+        query_image_folder = "./data/test"  # todo
         query_image_files = sorted(Path(query_image_folder).glob("*.jpg"))
         query_image_ids = [file.stem for file in query_image_files]
 
