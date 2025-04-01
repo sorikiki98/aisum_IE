@@ -22,7 +22,7 @@ if __name__ == "__main__":
     params, dataset = None, None
     tokenizer = clip_tokenizer.build_tokenizer()
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    batch_size = 512  # todo
+    batch_size = 512
 
     if image_embedding_model_name.startswith("magiclens"):
         image_embedding_model, params = load_image_embedding_model(image_embedding_model_name)
@@ -33,6 +33,9 @@ if __name__ == "__main__":
     elif image_embedding_model_name == 'vit':
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         preprocess = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224-in21k')
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+    elif image_embedding_model_name == "imagebind":
+        image_embedding_model, preprocess = load_image_embedding_model("imagebind")
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
     else:
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
@@ -49,7 +52,7 @@ if __name__ == "__main__":
         batch_ids_with_cats = dataset.index_image_ids_with_cats[batch_idx * batch_size: (batch_idx + 1) * batch_size]
 
         batch_examples = dataset.prepare_index_examples(batch_ids_with_cats)
-        batch_ids = np.array(batch_ids, dtype=str)
+        batch_ids = np.ascontiguousarray(np.array(batch_ids), dtype=np.int64)
         batch_cat1s = [i.category1_code for i in batch_examples]
         batch_cat2s = [i.category2_code for i in batch_examples]
 
@@ -82,6 +85,14 @@ if __name__ == "__main__":
             iimages = torch.stack(iimages).to(device)
             with torch.no_grad():
                 batch_embeddings = image_embedding_model(iimages)
+            batch_embeddings_ndarray = batch_embeddings.cpu().numpy()
+        elif image_embedding_model_name == "imagebind":
+            iimages = [i.iimage for i in batch_examples]
+            iimages = torch.stack(iimages).to(device)
+            inputs = { ModalityType.VISION: iimages }
+            with torch.no_grad():
+                batch_embeddings = image_embedding_model(inputs)
+                batch_embeddings = batch_embeddings[ModalityType.VISION]
             batch_embeddings_ndarray = batch_embeddings.cpu().numpy()
         else:
             iimages = [i.iimage for i in batch_examples]
