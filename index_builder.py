@@ -37,6 +37,9 @@ if __name__ == "__main__":
     elif image_embedding_model_name == "imagebind":
         image_embedding_model, preprocess = load_image_embedding_model("imagebind")
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+    elif image_embedding_model_name == "mobilenetv3":
+        image_embedding_model, preprocess = load_image_embedding_model("mobilenetv3")
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
     else:
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
@@ -93,6 +96,12 @@ if __name__ == "__main__":
             with torch.no_grad():
                 batch_embeddings = image_embedding_model(inputs)
                 batch_embeddings = batch_embeddings[ModalityType.VISION]
+            batch_embeddings_ndarray = batch_embeddings.cpu().numpy()
+        elif image_embedding_model == "mobilenetv3":
+            iimages = [i.iimage for i in batch_examples]
+            iimages = torch.stack(iimages).to(device)
+            with torch.no_grad():
+                batch_embeddings = image_embedding_model(iimages)
             batch_embeddings_ndarray = batch_embeddings.cpu().numpy()
         else:
             iimages = [i.iimage for i in batch_examples]
