@@ -22,8 +22,8 @@ class QueryExample:
     retrieved_iids: List[Union[int, str]]  # ranked by score, can be str (cirr) or int (circo)
     retrieved_scores: List[float]  # ranked by order
     # todo: server 연동 시, 아래 코드 사용
-    # category1_code: str
-    # category2_code: str
+    #category1_code: str 
+    #category2_code: str
 
 
 @dataclass
@@ -77,8 +77,9 @@ def process_img_to_torch(image_path: str, size: int, preprocess=None) -> torch.T
         ])
         return preprocess(img)
     else:
-        # preprocess를 사용하는 모델 -> ViT 모델은 PIL.Image 객체로 받음 / imagebind 모델은 image_path로 받음
-        return preprocess(image_path, return_tensors="pt", input_data_format="channels_last")
+        # preprocess를 사용하는 모델 -> ViT 모델, movilenetv3은 PIL.Image 객체로 받음 / imagebind 모델은 image_path로 받음
+        #return preprocess(image_path, return_tensors="pt", input_data_format="channels_last")
+        return preprocess(img)
 
 
 class EselTreeDatasetForMagicLens(Dataset):
@@ -90,7 +91,7 @@ class EselTreeDatasetForMagicLens(Dataset):
         index_image_ids_with_cats = [str(file).split(".")[0] for file in index_image_files]
         index_image_ids = [file.stem for file in index_image_files]
 
-        query_image_folder = "../data/test/images"
+        query_image_folder = "./data/test"
         query_image_files = sorted(Path(query_image_folder).glob("*.jpg"))
         query_image_ids = [file.stem for file in query_image_files]
 
@@ -156,7 +157,7 @@ class EselTreeDatasetDefault(Dataset):
         index_image_ids_with_cats = [str(file).split(".")[0] for file in index_image_files]
         index_image_ids = [file.stem for file in index_image_files]
 
-        query_image_folder = "./data/test"  # todo
+        query_image_folder = "../data/test/images"  # todo ../data/test/images
         query_image_files = sorted(Path(query_image_folder).glob("*.jpg"))
         query_image_ids = [file.stem for file in query_image_files]
 
@@ -202,9 +203,9 @@ class EselTreeDatasetDefault(Dataset):
 
     def _process_query_example(self, query_img_id, preprocess=None):  # cat1/cat2/img_id.jpg
         # todo: server 연동 시, 아래 코드 사용
-        # cat1_code = query_img_id.split(os.sep)[-3]
-        # cat2_code = query_img_id.split(os.sep)[-2]
-        # img_id = query_img_id.split(os.sep)[-1]
+        #cat1_code = query_img_id.split(os.sep)[-3]
+        #cat2_code = query_img_id.split(os.sep)[-2]
+        #img_id = query_img_id.split(os.sep)[-1]
         qtext = ""
         qimage_path = os.path.join(self.query_image_folder, query_img_id + ".jpg")
         ima = process_img_to_torch(qimage_path, 224, preprocess)
