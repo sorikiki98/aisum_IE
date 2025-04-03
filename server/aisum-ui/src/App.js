@@ -95,6 +95,8 @@ function App() {
               <option value="openai_clip">openai_clip</option>
               <option value="laion_clip">laion_clip</option>
               <option value="blip2">blip2</option>
+              <option value="densenet121">densenet121</option>
+              <option value="fashionclip">fashionclip</option>
             </select>
             <button onClick={handleEmbed} disabled={!selectedFile}>임베딩 실행</button>
             <button onClick={handleReset}>리셋</button>
