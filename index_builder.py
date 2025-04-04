@@ -24,7 +24,7 @@ if __name__ == "__main__":
     params, dataset = None, None
     tokenizer = clip_tokenizer.build_tokenizer()
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    batch_size = 512
+    batch_size = 64
 
     if image_embedding_model_name.startswith("magiclens"):
         image_embedding_model, params = load_image_embedding_model(image_embedding_model_name)
