@@ -84,7 +84,7 @@ class EselTreeDatasetForMagicLens(Dataset):
     def __init__(self, dataset_name: str, tokenizer: Any):
         self.dataset_name = dataset_name
         self.tokenizer = tokenizer
-        index_image_folder = "./data"
+        index_image_folder = "../data"
         index_image_files = sorted(Path(index_image_folder).glob("**/*.jpg"))
         index_image_ids_with_cats = [str(file).split(".")[0] for file in index_image_files]
         index_image_ids = [file.stem for file in index_image_files]
@@ -150,7 +150,7 @@ class EselTreeDatasetDefault(Dataset):
 
         self.dataset_name = dataset_name
         self.tokenizer = tokenizer
-        index_image_folder = "./data"  # todo
+        index_image_folder = "../data"  # todo
         index_image_files = sorted(Path(index_image_folder).glob("**/*.jpg"))
         index_image_ids_with_cats = [str(file).split(".")[0] for file in index_image_files]
         index_image_ids = [file.stem for file in index_image_files]

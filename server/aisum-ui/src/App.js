@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import axios from 'axios';
 
 function App() {
@@ -9,6 +9,7 @@ function App() {
   const [model, setModel] = useState('convnextv2_base');
   const [category1, setCategory1] = useState("");
   const [category2, setCategory2] = useState("");
+  const fileInputRef = useRef(null);
 
   const handleFileChange = (event) => {
     const file = event.target.files[0];
@@ -48,6 +49,9 @@ function App() {
     setDistances([]);
     setCategory1("");
     setCategory2("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   return (
@@ -66,6 +70,7 @@ function App() {
             type="file"
             accept="image/*"
             onChange={handleFileChange}
+            ref={fileInputRef}
             style={{ marginBottom: '20px' }}
           />
 
@@ -96,7 +101,7 @@ function App() {
               <option value="laion_clip">laion_clip</option>
               <option value="blip2">blip2</option>
             </select>
-            <button onClick={handleEmbed} disabled={!selectedFile}>임베딩 실행</button>
+            <button onClick={handleEmbed} disabled={!selectedFile}>검색</button>
             <button onClick={handleReset}>리셋</button>
           </div>
         </div>
