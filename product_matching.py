@@ -16,31 +16,37 @@ def find_similar_product_ids(image_embedding_model,
     return ids, similarities
 
 
-def save_retrieved_images_by_ids(image_embedding_model_name, all_batch_ids, all_batch_similarities, category1, category2):
-    project_root = Path(__file__).parent
-    data_root = project_root / "data" / "eseltree" / "images"
+def save_retrieved_images_by_ids(image_embedding_model_name, all_batch_ids, all_batch_similarities,
+                                 all_batch_cat1s, all_batch_cat2s):
+    saved_paths = []  # 저장된 이미지 경로를 담을 리스트
+    
+    for batch_index, (batch_ids, cat1_list, cat2_list, sim_list) in enumerate(
+        zip(all_batch_ids, all_batch_cat1s, all_batch_cat2s, all_batch_similarities)):
+        
+        batch_paths = []  # 현재 배치의 이미지 경로들
+        retrieved_image_folder = f"../outputs/{image_embedding_model_name}/{batch_index}"
 
-    for i, batch_ids in enumerate(all_batch_ids):
-        # 분석용 outputs 폴더
-        retrieved_image_folder = project_root / "outputs" / image_embedding_model_name / str(i)
-        if retrieved_image_folder.exists():
+        if os.path.exists(retrieved_image_folder):
             shutil.rmtree(retrieved_image_folder)
-        retrieved_image_folder.mkdir(parents=True, exist_ok=True)
+        os.makedirs(retrieved_image_folder, exist_ok=True)
 
-        for j, img_id in enumerate(batch_ids):
-            original_path = data_root / category1 / category2 / f"{img_id}.jpg"
-            public_image_path = data_root / category1 / category2 / f"{img_id}.jpg"
+        for idx, (img_id, cat1, cat2, similarity) in enumerate(zip(batch_ids, cat1_list, cat2_list, sim_list)):
+            file_path = os.path.join("../data/eseltree/images",cat1,cat2,f"{img_id}.jpg")
+            save_name = f"top_{idx + 1}_{similarity}.jpg"
+            save_path = os.path.join(retrieved_image_folder, save_name)
 
-            if original_path.exists():
-                image = Image.open(original_path)
-                save_path = retrieved_image_folder / f"top_{j + 1}_{all_batch_similarities[i][j]}.jpg"
+            if os.path.exists(file_path):
+                image = Image.open(file_path)
                 image.save(save_path)
-
-                if original_path != public_image_path:
-                    public_image_path.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy(str(original_path), str(public_image_path))
+                # 상대 경로 형식으로 저장 (outputs/model_name/batch_index/filename)
+                relative_path = f"outputs/{image_embedding_model_name}/{batch_index}/{save_name}"
+                batch_paths.append(relative_path)
             else:
-                print(f"❌ 원본 이미지 없음: {original_path}")
+                print(f"File does not exist: {file_path}")
+                
+        saved_paths.append(batch_paths)
+    
+    return saved_paths
 
 
 def find_similar_product(image_embedding_model, image_embedding_model_name, category1, category2, model_params=None):
@@ -52,7 +58,7 @@ def find_similar_product(image_embedding_model, image_embedding_model_name, cate
         category1=category1,
         category2=category2
     )
-    return ids, similarities
+    return ids, similarities, category1s, category2s
 
 
 def main(model_name=None, category1=None, category2=None):
@@ -60,13 +66,24 @@ def main(model_name=None, category1=None, category2=None):
     if model_name is None:
         raise ValueError("model_name is required")
 
+    # Convert empty strings to None
+    category1 = category1 if category1 and category1.strip() else None
+    category2 = category2 if category2 and category2.strip() else None
+
     print_pgvector_info(model_name)
     image_embedding_model, params = load_image_embedding_model(model_name)
-    all_ids, all_similarities = find_similar_product(image_embedding_model, model_name, category1, category2, params)
-    save_retrieved_images_by_ids(model_name, all_ids, all_similarities, category1, category2)
+    all_ids, all_similarities, all_cat1s, all_cat2s = find_similar_product(
+        image_embedding_model, 
+        model_name, 
+        category1, 
+        category2,  
+        params
+    )
+    result_paths = save_retrieved_images_by_ids(model_name, all_ids, all_similarities, all_cat1s, all_cat2s)
     
     return {
         'result_ids': all_ids,
-        'result_distances': all_similarities
+        'result_distances': all_similarities,
+        'result_paths': result_paths
     }
 

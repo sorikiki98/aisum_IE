@@ -18,7 +18,7 @@ from transformers import ViTModel, ViTImageProcessor
 
 
 def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
-    if image_embedding_model_name == "ViT":
+    if image_embedding_model_name == "vit":
         return 768
     elif image_embedding_model_name == "resnet152" or image_embedding_model_name == "resnext101":
         return 2048
@@ -39,11 +39,11 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
 
 
 def get_image_embedding_model_name():
-    image_embedding_model_name = input("Enter embedding model name (ViT, resnet152, efnet, magiclens_base, "
+    image_embedding_model_name = input("Enter embedding model name (vit, resnet152, efnet, magiclens_base, "
                                        "magiclens_large, convnextv2_small, convnextv2_base, convnextv2_large, "
                                        "resnext101): ")
     print(image_embedding_model_name)
-    if image_embedding_model_name not in ["ViT", "efnet", "resnet152", "magiclens_base", "magiclens_large",
+    if image_embedding_model_name not in ["vit", "efnet", "resnet152", "magiclens_base", "magiclens_large",
                                           "convnextv2_small", "convnextv2_base", "convnextv2_large",
                                           "resnext101"]:
         raise ValueError("Invalid embedding model name")
@@ -57,7 +57,8 @@ def get_device():
 
 
 def load_image_embedding_model(image_embedding_model_name):
-    if image_embedding_model_name == "ViT":
+    if image_embedding_model_name == "vit":
+        print("Loading ViT model...")
         model = ViTModel.from_pretrained('google/vit-base-patch16-224-in21k')
         device = get_device()
         model.to(device)
