@@ -81,11 +81,12 @@ def process_img_to_torch(image_path: str, size: int, preprocess=None, prompt=Non
         return img
     else:
         if prompt is None:
-            # processed = preprocess(img, return_tensors="pt", input_data_format="channels_last")
+            return preprocess(image_path, return_tensors="pt", input_data_format="channels_last")
             # return processed["pixel_values"]
-            return preprocess(img)
+            # return processed(img)
         else:
-            return preprocess(images=img, return_tensors="pt", text=prompt)
+            # return preprocess(images=img, return_tensors="pt", text=prompt)
+            return preprocess(img)
 
 
 class EselTreeDatasetForMagicLens(Dataset):
