@@ -4,12 +4,16 @@ import axios from 'axios';
 function App() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewURL, setPreviewURL] = useState(null);
-  const [resultImages, setResultImages] = useState([]);
-  const [distances, setDistances] = useState([]);
-  const [model, setModel] = useState('convnextv2_base');
+  const [selectedModels, setSelectedModels] = useState([]);
   const [category1, setCategory1] = useState("");
   const [category2, setCategory2] = useState("");
+  const [resultsByModel, setResultsByModel] = useState({});
   const fileInputRef = useRef(null);
+  const modelOptions = [
+    "efnet", "vit", "convnextv2_base", "convnextv2_large",
+    "magiclens_base", "magiclens_large", "openai_clip", "laion_clip",
+    "blip2", "densenet121", "fashionclip","resnext101"
+  ];
 
   const handleFileChange = (event) => {
     const file = event.target.files[0];
@@ -17,38 +21,53 @@ function App() {
     setPreviewURL(URL.createObjectURL(file));
   };
 
+  const handleModelSelection = (e) => {
+    const value = e.target.value;
+    setSelectedModels((prev) =>
+      prev.includes(value) ? prev.filter((m) => m !== value) : [...prev, value]
+    );
+  };
+
   const handleEmbed = async () => {
-    if (!selectedFile) return;
+    if (!selectedFile || selectedModels.length === 0) return;
 
-    const formData = new FormData();
-    formData.append("file", selectedFile);
-    formData.append("model_name", model);
-    formData.append("category1", category1);
-    formData.append("category2", category2);
+    const newResults = {};
 
-    try {
-      const response = await axios.post("http://127.0.0.1:8000/embed/", formData);
-      const imagePaths = response.data.similar_images;
-      const distances = response.data.distances;
+    for (const model of selectedModels) {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      formData.append("model_name", model);
+      formData.append("category1", category1);
+      formData.append("category2", category2);
 
-      const fullUrls = imagePaths.map(
-        (path) => `http://127.0.0.1:8000/${path.replace(/\\/g, "/")}`
-      );
+      try {
+        const response = await axios.post("http://127.0.0.1:8000/embed/", formData);
+        const imagePaths = response.data.similar_images;
+        const distances = response.data.distances;
 
-      setResultImages(fullUrls);
-      setDistances(distances);
-    } catch (error) {
-      alert("에러 발생: " + error.message);
+        const fullUrls = imagePaths.map(
+          (path) => `http://127.0.0.1:8000/${path.replace(/\\/g, "/")}`
+        );
+
+        newResults[model] = {
+          urls: fullUrls,
+          distances: distances
+        };
+      } catch (error) {
+        alert(`모델 [${model}] 처리 중 에러 발생: ${error.message}`);
+      }
     }
+
+    setResultsByModel(newResults);
   };
 
   const handleReset = () => {
     setSelectedFile(null);
     setPreviewURL(null);
-    setResultImages([]);
-    setDistances([]);
     setCategory1("");
     setCategory2("");
+    setSelectedModels([]);
+    setResultsByModel({});
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -58,7 +77,7 @@ function App() {
     <div style={{ display: 'flex', height: '100vh' }}>
       {/* 왼쪽: 컨트롤 영역 */}
       <div style={{
-        flex: '0 0 220px',
+        flex: '0 0 250px',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
@@ -89,21 +108,24 @@ function App() {
             style={{ marginBottom: '20px', width: '100%' }}
           />
 
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-            <select value={model} onChange={(e) => setModel(e.target.value)}>
-              <option value="efnet">EfficientNetV2</option>
-              <option value="vit">ViT</option>
-              <option value="convnextv2_base">ConvNeXtV2 Base</option>
-              <option value="convnextv2_large">ConvNeXtV2 Large</option>
-              <option value="magiclens_base">Magiclens Base</option>
-              <option value="magiclens_large">Magiclens Large</option>
-              <option value="openai_clip">openai_clip</option>
-              <option value="laion_clip">laion_clip</option>
-              <option value="blip2">blip2</option>
-            </select>
-            <button onClick={handleEmbed} disabled={!selectedFile}>검색</button>
-            <button onClick={handleReset}>리셋</button>
+          <div style={{ marginBottom: '20px', maxHeight: '200px', overflowY: 'auto' }}>
+            {modelOptions.map((model) => (
+              <div key={model}>
+                <label>
+                  <input
+                    type="checkbox"
+                    value={model}
+                    checked={selectedModels.includes(model)}
+                    onChange={handleModelSelection}
+                  />
+                  {model}
+                </label>
+              </div>
+            ))}
           </div>
+
+          <button onClick={handleEmbed} disabled={!selectedFile}>이미지 검색</button>
+          <button onClick={handleReset} style={{ marginTop: '10px' }}>리셋</button>
         </div>
 
         {previewURL && (
@@ -123,31 +145,44 @@ function App() {
         )}
       </div>
 
-      {/* 오른쪽: 결과 이미지 */}
+      {/* 오른쪽: 결과 영역 */}
       <div style={{ flex: 1, padding: '20px', overflowY: 'auto' }}>
-        <h3>처리된 결과 이미지</h3>
-        <div style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '15px',
-          marginTop: '15px'
-        }}>
-          {resultImages.map((url, index) => (
-            <div key={index} style={{ textAlign: 'center' }}>
-              <img
-                src={url}
-                alt={`결과 ${index + 1}`}
-                style={{
-                  width: '200px',
-                  height: '200px',
-                  objectFit: 'cover',
-                  border: '2px solid green'
-                }}
-              />
-              <p>Distance: {distances[index]?.toFixed(4)}</p>
+        {Object.keys(resultsByModel).length === 0 ? (
+          <h3>처리된 결과 이미지가 없습니다.</h3>
+        ) : (
+          Object.entries(resultsByModel).map(([model, data]) => (
+            <div key={model} style={{ marginBottom: '20px' }}>
+              <h4 style={{ margin: '5px 0' }}>
+              🔍 Model: {model}</h4>
+              <div style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '4px',
+                justifyContent: 'flex-start'
+              }}>
+                {data.urls.map((url, index) => (
+                  <div key={index} style={{ 
+                    width: 'calc(6.5% - 4px)',
+                    textAlign: 'center',
+                    boxSizing: 'border-box'}}>
+                    <img
+                      src={url}
+                      alt={`결과 ${index + 1}`}
+                      style={{
+                        width: '100%',
+                        height: 'auto',
+                        objectFit: 'cover',
+                        border: '1px solid #999'
+                      }}
+                    />
+                    <p style={{ fontSize: '11px', margin: '2px 0', fontWeight: '500' }}>
+                    Distance: {data.distances[index]?.toFixed(4)}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
-        </div>
+          ))
+        )}
       </div>
     </div>
   );

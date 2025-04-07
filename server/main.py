@@ -87,11 +87,11 @@ async def embed_and_search_similar_images(
         print(traceback.format_exc())
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
-# ✅ 정적 파일 경로: 프론트엔드 빌드
+# 정적 파일 경로: 프론트엔드 빌드
 frontend_build_path = Path(__file__).resolve().parent / "aisum-ui" / "build"
 app.mount("/static", StaticFiles(directory=frontend_build_path / "static"), name="static")
 
-# ✅ output 디렉토리도 정적 파일로 마운트
+# output 디렉토리도 정적 파일로 마운트
 project_root = Path(__file__).parent.parent
 app.mount(
     "/outputs",
@@ -101,7 +101,7 @@ app.mount(
 
 app.mount("/", StaticFiles(directory=frontend_build_path, html=True), name="frontend")
 
-# ✅ SPA 라우팅
+# SPA 라우팅
 @app.get("/{full_path:path}")
 async def serve_spa():
     return FileResponse(frontend_build_path / "index.html")

@@ -18,12 +18,12 @@ def find_similar_product_ids(image_embedding_model,
 
 def save_retrieved_images_by_ids(image_embedding_model_name, all_batch_ids, all_batch_similarities,
                                  all_batch_cat1s, all_batch_cat2s):
-    saved_paths = []  # 저장된 이미지 경로를 담을 리스트
+    saved_paths = []
     
     for batch_index, (batch_ids, cat1_list, cat2_list, sim_list) in enumerate(
         zip(all_batch_ids, all_batch_cat1s, all_batch_cat2s, all_batch_similarities)):
         
-        batch_paths = []  # 현재 배치의 이미지 경로들
+        batch_paths = [] 
         retrieved_image_folder = f"../outputs/{image_embedding_model_name}/{batch_index}"
 
         if os.path.exists(retrieved_image_folder):
@@ -38,7 +38,6 @@ def save_retrieved_images_by_ids(image_embedding_model_name, all_batch_ids, all_
             if os.path.exists(file_path):
                 image = Image.open(file_path)
                 image.save(save_path)
-                # 상대 경로 형식으로 저장 (outputs/model_name/batch_index/filename)
                 relative_path = f"outputs/{image_embedding_model_name}/{batch_index}/{save_name}"
                 batch_paths.append(relative_path)
             else:
@@ -62,11 +61,9 @@ def find_similar_product(image_embedding_model, image_embedding_model_name, cate
 
 
 def main(model_name=None, category1=None, category2=None):
-    # For web interface, model_name is required
     if model_name is None:
         raise ValueError("model_name is required")
 
-    # Convert empty strings to None
     category1 = category1 if category1 and category1.strip() else None
     category2 = category2 if category2 and category2.strip() else None
 
