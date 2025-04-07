@@ -6,17 +6,6 @@ from pathlib import Path
 from transformers import Blip2Processor
 import unicom
 
-
-def extract_last_two_categories(path_str):
-    parts = Path(path_str).parts
-    if len(parts) >= 2:
-        return parts[-2], parts[-1]
-    elif len(parts) == 1:
-        return None, parts[-1]  # category1 없음
-    else:
-        return None, None
-
-
 if __name__ == "__main__":
     image_embedding_model_name = get_image_embedding_model_name()
     # faiss_index_with_ids = load_or_create_faiss_index(image_embedding_model_name)
@@ -42,6 +31,7 @@ if __name__ == "__main__":
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
     elif image_embedding_model_name == "swin":
         image_embedding_model, preprocess = load_image_embedding_model("swin_base_patch4_window7_224")
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
     elif image_embedding_model_name == 'blip2':
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         preprocess = Blip2Processor.from_pretrained('Salesforce/blip2-flan-t5-xxl')
@@ -78,6 +68,9 @@ if __name__ == "__main__":
     elif image_embedding_model_name == "mobilenetv3":
         image_embedding_model, preprocess = load_image_embedding_model("mobilenetv3")
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+    elif image_embedding_model_name == "fashionclip":
+        image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
     else:
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
@@ -185,6 +178,10 @@ if __name__ == "__main__":
             with torch.no_grad():
                 outputs = image_embedding_model(**inputs)
             batch_embeddings_ndarray = outputs.image_embeds.cpu().numpy()
+        elif image_embedding_model_name == "fashionclip":
+            iimages = [i.iimage for i in batch_examples]
+            batch_embeddings_ndarray = image_embedding_model.encode_images(iimages)
+            batch_embeddings_ndarray = np.array(batch_embeddings_ndarray, dtype=np.float32) 
         else:
             iimages = [i.iimage for i in batch_examples]
             iimages = torch.stack(iimages).to(device)

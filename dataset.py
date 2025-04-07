@@ -198,7 +198,7 @@ class EselTreeDatasetDefault(Dataset):
         query_examples = []
         with tqdm(total=len(query_image_ids), desc="Query examples") as progress:
             for query_img_id in query_image_ids:
-                q_example = self._process_query_example(query_img_id, preprocess=self.preprocess, prompt=self.prompt)
+                q_example = self._process_query_example(query_img_id, preprocess=self.preprocess)
                 query_examples.append(q_example)
                 progress.update(1)
         return query_examples
