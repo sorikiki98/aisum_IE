@@ -491,6 +491,9 @@ def imagebind_huge(pretrained=False):
 
     if pretrained:
         weight_path = "../models/imagebind_huge.pth"
+        model.load_state_dict(torch.load(weight_path))
+        
+        """
         if not os.path.exists(weight_path):
             print(
                 "Downloading imagebind weights ..."
@@ -501,7 +504,6 @@ def imagebind_huge(pretrained=False):
                 ".checkpoints/imagebind_huge.pth",
                 progress=True,
             )
-
         model.load_state_dict(torch.load(".checkpoints/imagebind_huge.pth"))
-
+        """
     return model
