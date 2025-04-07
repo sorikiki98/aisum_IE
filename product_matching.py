@@ -3,11 +3,20 @@ import shutil
 from PIL import Image
 from pathlib import Path
 from image_embedding_model import *
+from vector_database import *
 from pgvector_database import *
 
 
-def save_retrieved_images_by_ids(image_embedding_model_name, all_batch_ids, all_batch_similarities, category1,
-                                 category2):
+def find_similar_product_ids(image_embedding_model,
+                             image_embedding_model_name,
+                             faiss_index_with_ids,
+                             model_params=None):
+    query_embeddings = embed_images(image_embedding_model, image_embedding_model_name, model_params)
+    ids, similarities = search_faiss_index(faiss_index_with_ids, query_embeddings, 3, 1024)
+    return ids, similarities
+
+
+def save_retrieved_images_by_ids(image_embedding_model_name, all_batch_ids, all_batch_similarities, category1, category2):
     project_root = Path(__file__).parent
     data_root = project_root / "data" / "eseltree" / "images"
 
@@ -55,8 +64,9 @@ def main(model_name=None, category1=None, category2=None):
     image_embedding_model, params = load_image_embedding_model(model_name)
     all_ids, all_similarities = find_similar_product(image_embedding_model, model_name, category1, category2, params)
     save_retrieved_images_by_ids(model_name, all_ids, all_similarities, category1, category2)
-
+    
     return {
         'result_ids': all_ids,
         'result_distances': all_similarities
     }
+

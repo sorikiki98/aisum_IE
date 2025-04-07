@@ -231,4 +231,3 @@ def search_similar_vectors(image_embedding_model_name, query_ids, query_embeddin
     conn.close()
 
     return all_ids, all_cat1s, all_cat2s, all_distances
-
