@@ -3,17 +3,6 @@ from dataset import EselTreeDatasetForMagicLens, EselTreeDatasetDefault
 from scenic.projects.baselines.clip import tokenizer as clip_tokenizer
 from pgvector_database import *
 from pathlib import Path
-from fashionclip_all.fashion_clip import FashionCLIP
-
-def extract_last_two_categories(path_str):
-    parts = Path(path_str).parts
-    if len(parts) >= 2:
-        return parts[-2], parts[-1]
-    elif len(parts) == 1:
-        return None, parts[-1]  # category1 없음
-    else:
-        return None, None
-
 
 if __name__ == "__main__":
     image_embedding_model_name = get_image_embedding_model_name()
@@ -35,7 +24,7 @@ if __name__ == "__main__":
         preprocess = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224-in21k')
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
     elif image_embedding_model_name == "fashionclip":
-        image_embedding_model = FashionCLIP("patrickjohncyh/fashion-clip", device=device)
+        image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
     else:
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
