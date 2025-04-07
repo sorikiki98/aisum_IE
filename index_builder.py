@@ -3,7 +3,7 @@ from dataset import EselTreeDatasetForMagicLens, EselTreeDatasetDefault
 from scenic.projects.baselines.clip import tokenizer as clip_tokenizer
 from pgvector_database import *
 from pathlib import Path
-
+from fashionclip_all.fashion_clip import FashionCLIP
 
 def extract_last_two_categories(path_str):
     parts = Path(path_str).parts
@@ -34,6 +34,9 @@ if __name__ == "__main__":
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         preprocess = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224-in21k')
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+    elif image_embedding_model_name == "fashionclip":
+        image_embedding_model = FashionCLIP("patrickjohncyh/fashion-clip", device=device)
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
     else:
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
@@ -83,6 +86,10 @@ if __name__ == "__main__":
             with torch.no_grad():
                 batch_embeddings = image_embedding_model(iimages)
             batch_embeddings_ndarray = batch_embeddings.cpu().numpy()
+        elif image_embedding_model_name == "fashionclip":
+            iimages = [i.iimage for i in batch_examples]
+            batch_embeddings_ndarray = image_embedding_model.encode_images(iimages)
+            batch_embeddings_ndarray = np.array(batch_embeddings_ndarray, dtype=np.float32) 
         else:
             iimages = [i.iimage for i in batch_examples]
             iimages = torch.stack(iimages).to(device)
