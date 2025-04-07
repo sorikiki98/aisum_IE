@@ -16,7 +16,7 @@ from dataset import EselTreeDatasetForMagicLens, EselTreeDatasetDefault
 from scenic.projects.baselines.clip import tokenizer as clip_tokenizer
 from transformers import ViTModel, ViTImageProcessor
 from torchvision.models import densenet121
-from fashionclip_all.fashion_clip import FashionCLIP
+from models.fashion_clip import FashionCLIP
 
 
 
@@ -135,8 +135,6 @@ def load_image_embedding_model(image_embedding_model_name):
         device = get_device()
         model = FashionCLIP("patrickjohncyh/fashion-clip", device=device)
         return model, None
-
-
 
 
 def embed_images(image_embedding_model, image_embedding_model_name, model_params=None):
