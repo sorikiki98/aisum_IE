@@ -1,20 +1,34 @@
+import pickle
+import sys
 import jax
 import jax.numpy as jnp
-
-from torchvision import models
+import numpy as np
+import timm
 import torch
 import torch.nn as nn
-import numpy as np
-import pickle
-import timm
-
 from flax import serialization
+from scenic.projects.baselines.clip import tokenizer as clip_tokenizer
+from torchvision import models
 from models.resnet import ResNet152
 from models.resnext import ResNext101
 from models.magiclens import MagicLens
+from models.openai_clip import OpenAICLIP
+from models.laion_clip import LaionCLIP
 from dataset import EselTreeDatasetForMagicLens, EselTreeDatasetDefault
 from scenic.projects.baselines.clip import tokenizer as clip_tokenizer
-from transformers import ViTModel, ViTImageProcessor
+from transformers import ViTModel, ViTImageProcessor, Blip2Processor
+from transformers import Blip2Model
+
+import unicom
+from dataset import EselTreeDatasetForMagicLens, EselTreeDatasetDefault
+from models.magiclens import MagicLens
+from models.resnet import ResNet152
+from models.resnext import ResNext101
+
+sys.path.append("/home/jiwoo/magiclens/aisum_IE/unicom_all")  # unicom이 있는 상위 폴더
+
+from timm import create_model
+from timm.data import create_transform
 
 
 def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
@@ -34,6 +48,16 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
         return 1024
     elif image_embedding_model_name == "convnextv2_large":
         return 1536
+    elif image_embedding_model_name == "unicom_all":
+        return 512
+    elif image_embedding_model_name == "swin":
+        return 1024
+    elif image_embedding_model_name == "blip2":
+        return 768
+    elif image_embedding_model_name == "openai_clip":
+        return 768
+    elif image_embedding_model_name == "laion_clip":
+        return 1024
     else:
         raise ValueError("Invalid embedding model name")
 
@@ -41,10 +65,10 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
 def get_image_embedding_model_name():
     image_embedding_model_name = input("Enter embedding model name (vit, resnet152, efnet, magiclens_base, "
                                        "magiclens_large, convnextv2_small, convnextv2_base, convnextv2_large, "
-                                       "resnext101): ")
+                                       "resnext101, unicom_all, swin, blip2, openai_clip, laion_clip): ")
     if image_embedding_model_name not in ["vit", "efnet", "resnet152", "magiclens_base", "magiclens_large",
                                           "convnextv2_small", "convnextv2_base", "convnextv2_large",
-                                          "resnext101"]:
+                                          "resnext101", "unicom_all", "swin", "blip2", "openai_clip", "laion_clip"]:
         raise ValueError("Invalid embedding model name")
     return image_embedding_model_name
 
@@ -83,7 +107,7 @@ def load_image_embedding_model(image_embedding_model_name):
             "image": jnp.ones((1, 224, 224, 3), dtype=jnp.float32),
         }
         params = model.init(rng, dummpy_input)
-        with open(f"./models/magic_lens_clip_{model_size}.pkl", "rb") as f:
+        with open(f"../models/magic_lens_clip_{model_size}.pkl", "rb") as f:
             model_bytes = pickle.load(f)
         params = serialization.from_bytes(params, model_bytes)
         params = jax.device_put(params)
@@ -115,8 +139,36 @@ def load_image_embedding_model(image_embedding_model_name):
         model.to(device)
         model.eval()
         return model, None
-    elif image_embedding_model_name == "regnet":
-        pass
+    elif image_embedding_model_name == "unicom_all":
+        model, preprocess = unicom.load("ViT-B/32")
+        device = get_device()
+        model.to(device)
+        model.eval()
+        return model, preprocess
+    elif image_embedding_model_name == "swin_base_patch4_window7_224" or image_embedding_model_name == "swin":
+        model = create_model("swin_base_patch4_window7_224", pretrained=True, num_classes=0)  # classification head 제거
+        device = get_device()
+        model.to(device)
+        model.eval()
+        transform = create_transform(
+            input_size=(3, 224, 224),
+            is_training=False
+        )
+        return model, transform
+    elif image_embedding_model_name == "blip2":
+        model = Blip2Model.from_pretrained(
+            "Salesforce/blip2-flan-t5-xxl", torch_dtype=torch.float16
+        )
+        device = get_device()
+        model.to(device)
+        model.eval()
+        return model, None
+    elif image_embedding_model_name == "openai_clip":
+        model = OpenAICLIP()
+        return model, None
+    elif image_embedding_model_name == "laion_clip":
+        model = LaionCLIP()
+        return model, None
 
 
 def embed_images(image_embedding_model, image_embedding_model_name, model_params=None):
@@ -133,7 +185,6 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         ]
         image_embeddings_ndarray = np.array(qembeds)
     elif image_embedding_model_name == "resnet152" or image_embedding_model_name == "resnext101" or image_embedding_model_name == "efnet":
-        tokenizer = clip_tokenizer.build_tokenizer()
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
         query_ids = dataset.query_image_ids
         query_examples = dataset.prepare_query_examples(query_ids)
@@ -144,7 +195,6 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
             qembeds = image_embedding_model(qimages)
         image_embeddings_ndarray = qembeds.cpu().numpy()
     elif image_embedding_model_name == "vit":
-        tokenizer = clip_tokenizer.build_tokenizer()
         preprocess = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224-in21k')
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
         query_ids = dataset.query_image_ids
@@ -157,10 +207,10 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         image_embeddings = outputs.last_hidden_state[:, 0, :]
         image_embeddings_ndarray = image_embeddings.cpu().numpy()
     elif image_embedding_model_name in ["convnextv2_large", "convnextv2_small", "convnextv2_base"]:
-        tokenizer = clip_tokenizer.build_tokenizer()
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
         query_ids = dataset.query_image_ids
         query_examples = dataset.prepare_query_examples(query_ids)
+
         qimages = [q.qimage for q in query_examples]
         qimages = torch.stack(qimages).to(get_device())
         with torch.no_grad():
@@ -169,6 +219,58 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         qembeds = adaptive_pool(qembeds)
         qembeds = qembeds.reshape(qembeds.size(0), -1)
         image_embeddings_ndarray = qembeds.cpu().numpy()
+    elif image_embedding_model_name == "unicom_all":
+        tokenizer = clip_tokenizer.build_tokenizer()
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=model_params)
+        query_ids = dataset.query_image_ids
+        query_examples = dataset.prepare_query_examples(query_ids)
+
+        qimages = [q.qimage for q in query_examples]
+        qimages = torch.stack(qimages).to(get_device())
+
+        with torch.no_grad():
+            qembeds = image_embedding_model(qimages)
+            qembeds = qembeds / qembeds.norm(dim=-1, keepdim=True)  # optional: 정규화
+        image_embeddings_ndarray = qembeds.cpu().numpy()
+    elif image_embedding_model_name == "swin":
+        tokenizer = clip_tokenizer.build_tokenizer()
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=model_params)
+        query_ids = dataset.query_image_ids
+        query_examples = dataset.prepare_query_examples(query_ids)
+
+        qimages = [q.qimage for q in query_examples]
+        qimages = torch.stack(qimages).to(get_device())
+        with torch.no_grad():
+            qembeds = image_embedding_model(qimages)
+        image_embeddings_ndarray = qembeds.cpu().numpy()
+    elif image_embedding_model_name == "blip2":
+        preprocess = Blip2Processor.from_pretrained('Salesforce/blip2-flan-t5-xxl')
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess,
+                                         prompt="Question: Describe the product. Answer:")
+        query_ids = dataset.query_image_ids
+        query_examples = dataset.prepare_query_examples(query_ids)
+        qimages = [i.qimage['pixel_values'].to(get_device()) for i in query_examples]
+        qimages = torch.cat(qimages, dim=0)
+        with torch.no_grad():
+            outputs = image_embedding_model.get_qformer_features(qimages).last_hidden_state
+            pooled_outputs = torch.mean(outputs, dim=1)
+        image_embeddings_ndarray = pooled_outputs.cpu().numpy()
+    elif image_embedding_model_name == "openai_clip":
+        preprocess = OpenAICLIP().preprocess
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+        query_ids = dataset.query_image_ids
+        query_examples = dataset.prepare_query_examples(query_ids)
+        qimages = [i.qimage for i in query_examples]
+        qimage_tensors = torch.stack(qimages).to(get_device())
+        image_embeddings_ndarray = image_embedding_model.embed_images(qimage_tensors).cpu().numpy()
+    elif image_embedding_model_name == "laion_clip":
+        preprocess = LaionCLIP().preprocess
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+        query_ids = dataset.query_image_ids
+        query_examples = dataset.prepare_query_examples(query_ids)
+        qimages = [i.qimage for i in query_examples]
+        qimage_tensors = torch.stack(qimages).to(get_device())
+        image_embeddings_ndarray = image_embedding_model.embed_images(qimage_tensors).cpu().numpy()
     else:
         raise ValueError(f"Invalid embedding model name: {image_embedding_model_name}")
 
@@ -203,4 +305,5 @@ def feature_maps_to_embeddings(feature_maps):
     global_average_pooling = nn.AdaptiveAvgPool2d((2, 2)).to(device)
     pooled_features = global_average_pooling(feature_maps)
     embedding_vectors = pooled_features.view(pooled_features.size(0), -1)
+
     return embedding_vectors
