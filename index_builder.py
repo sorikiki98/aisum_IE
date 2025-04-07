@@ -7,6 +7,7 @@ from transformers import Blip2Processor
 
 import sys
 
+
 def extract_last_two_categories(path_str):
     parts = Path(path_str).parts
     if len(parts) >= 2:
@@ -108,7 +109,8 @@ if __name__ == "__main__":
             iimages = torch.stack(iimages).to(device)
             with torch.no_grad():
                 batch_embeddings = image_embedding_model(iimages)
-                batch_embeddings = batch_embeddings / batch_embeddings.norm(dim=-1, keepdim=True)  # (optional) cosine similarity정규화
+                batch_embeddings = batch_embeddings / batch_embeddings.norm(dim=-1,
+                                                                            keepdim=True)  # (optional) cosine similarity정규화
             batch_embeddings_ndarray = batch_embeddings.cpu().numpy()
         elif image_embedding_model_name == "swin":
             iimages = [i.iimage for i in batch_examples]
