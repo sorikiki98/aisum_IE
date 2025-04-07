@@ -8,6 +8,7 @@
 
 import os
 from functools import partial
+from pathlib import Path
 from types import SimpleNamespace
 
 import torch
@@ -492,7 +493,6 @@ def imagebind_huge(pretrained=False):
     if pretrained:
         weight_path = "../models/imagebind_huge.pth"
         model.load_state_dict(torch.load(weight_path))
-        
         """
         if not os.path.exists(weight_path):
             print(
