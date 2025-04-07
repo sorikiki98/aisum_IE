@@ -54,10 +54,28 @@ if __name__ == "__main__":
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         preprocess = image_embedding_model.preprocess
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+    elif image_embedding_model_name == 'dinov2':
+        image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=None)
+    elif image_embedding_model_name == 'siglip_so400':
+        image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
+        preprocess = AutoProcessor.from_pretrained("google/siglip-so400m-patch14-384")
+        tokenizer = AutoTokenizer.from_pretrained("google/siglip-so400m-patch14-384")
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+    elif image_embedding_model_name == 'siglip_large':
+        image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
+        preprocess = AutoProcessor.from_pretrained("google/siglip-large-patch16-384")
+        tokenizer = AutoTokenizer.from_pretrained("google/siglip-large-patch16-384")
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+    elif image_embedding_model_name == 'siglip2':
+        image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
+        preprocess = AutoProcessor.from_pretrained("google/siglip2-so400m-patch14-384")
+        tokenizer = AutoTokenizer.from_pretrained("google/siglip2-so400m-patch14-384")
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
     else:
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
-        
+
     print("📦 총 index 이미지 수:", len(dataset.index_image_ids))
     len_index_examples = len(dataset.index_image_ids)
     total_batches = len_index_examples // batch_size + (1 if len_index_examples % batch_size > 0 else 0)
@@ -132,6 +150,22 @@ if __name__ == "__main__":
             iimages = [i.iimage for i in batch_examples]
             iimage_tensors = torch.stack(iimages).to(device)
             batch_embeddings_ndarray = image_embedding_model.embed_images(iimage_tensors).cpu().numpy()
+        elif image_embedding_model_name == "dinov2":
+            iimages = [i.iimage for i in batch_examples]
+            iimages = torch.stack(iimages).to(device).half()
+            image_embedding_model = image_embedding_model.half()
+            with torch.no_grad():
+                batch_embeddings = image_embedding_model(iimages)
+            batch_embeddings_ndarray = batch_embeddings.cpu().numpy()
+        elif image_embedding_model_name.startswith("siglip"):
+            batch_images = [i.iimage for i in batch_examples]
+            inputs = preprocess(images=batch_images, return_tensors="pt", padding=True)
+            text_inputs = tokenizer([""] * len(batch_images), return_tensors="pt", padding=True)
+            inputs.update(text_inputs)
+            inputs = {k: v.to(device) for k, v in inputs.items()}
+            with torch.no_grad():
+                outputs = image_embedding_model(**inputs)
+            batch_embeddings_ndarray = outputs.image_embeds.cpu().numpy()
         else:
             iimages = [i.iimage for i in batch_examples]
             iimages = torch.stack(iimages).to(device)

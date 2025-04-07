@@ -77,6 +77,8 @@ def process_img_to_torch(image_path: str, size: int, preprocess=None, prompt=Non
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
         return preprocess(img)
+    elif "SiglipProcessor" in str(type(preprocess)):  # SigLIP processor인 경우
+        return img
     else:
         if prompt is None:
             # processed = preprocess(img, return_tensors="pt", input_data_format="channels_last")
@@ -154,16 +156,18 @@ class EselTreeDatasetForMagicLens(Dataset):
 
 class EselTreeDatasetDefault(Dataset):
     def __init__(self, dataset_name: str, tokenizer: Any, preprocess=None, prompt=None):
-
         self.dataset_name = dataset_name
         self.tokenizer = tokenizer
-        index_image_folder = "./data"  # todo
-        index_image_files = sorted(Path(index_image_folder).glob("**/*.jpg"))
+
+        project_root = Path(__file__).parent
+        index_image_folder = project_root / "data" / "eseltree" / "images"
+        index_image_files = sorted(index_image_folder.glob("**/*.jpg"))
         index_image_ids_with_cats = [str(file).split(".")[0] for file in index_image_files]
         index_image_ids = [file.stem for file in index_image_files]
 
-        query_image_folder = "../data/test/images"  # todo
-        query_image_files = sorted(Path(query_image_folder).glob("*.jpg"))
+        query_image_folder = project_root / "data" / "test" / "images"
+        print(f"Looking for query images in: {query_image_folder}")
+        query_image_files = sorted(query_image_folder.glob("*.jpg"))
         query_image_ids = [file.stem for file in query_image_files]
 
         null_tokens = tokenizer("")  # used for index example
@@ -208,14 +212,11 @@ class EselTreeDatasetDefault(Dataset):
         return IndexExample(iid=index_img_id, iimage=ima, itokens=self.null_tokens, category1_code=cat1_code,
                             category2_code=cat2_code)
 
-    def _process_query_example(self, query_img_id, preprocess=None, prompt=None):  # cat1/cat2/img_id.jpg
-        # todo: server 연동 시, 아래 코드 사용
-        # cat1_code = query_img_id.split(os.sep)[-3]
-        # cat2_code = query_img_id.split(os.sep)[-2]
-        # img_id = query_img_id.split(os.sep)[-1]
+    def _process_query_example(self, query_img_id, preprocess=None):  # cat1/cat2/img_id.jpg
         qtext = ""
         qimage_path = os.path.join(self.query_image_folder, query_img_id + ".jpg")
-        ima = process_img_to_torch(qimage_path, 224, preprocess, prompt)
+        print(qimage_path)
+        ima = process_img_to_torch(qimage_path, 224, preprocess)
         qtokens = np.array(self.tokenizer(qtext))
         return QueryExample(qid=query_img_id, qtokens=qtokens, qimage=ima, target_iid=0, retrieved_iids=[],
                             retrieved_scores=[])
