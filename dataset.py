@@ -22,8 +22,8 @@ class QueryExample:
     retrieved_iids: List[Union[int, str]]  # ranked by score, can be str (cirr) or int (circo)
     retrieved_scores: List[float]  # ranked by order
     # todo: server 연동 시, 아래 코드 사용
-    # category1_code: str
-    # category2_code: str
+    #category1_code: str 
+    #category2_code: str
 
 
 @dataclass
@@ -98,7 +98,7 @@ class EselTreeDatasetForMagicLens(Dataset):
         index_image_ids_with_cats = [str(file).split(".")[0] for file in index_image_files]
         index_image_ids = [file.stem for file in index_image_files]
 
-        query_image_folder = "../data/test/images"
+        query_image_folder = "./data/test"
         query_image_files = sorted(Path(query_image_folder).glob("*.jpg"))
         query_image_ids = [file.stem for file in query_image_files]
 

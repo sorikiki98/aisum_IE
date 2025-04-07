@@ -101,6 +101,8 @@ function App() {
               <option value="siglip_so400m">SigLIP-so400m</option>
               <option value="siglip_large">SigLIP-Large</option>
               <option value="siglip2">SigLIP2</option>
+              <option value="imagebind">imagebind</option>
+              <option value="mobilenetv3">mobilenetv3</option>
             </select>
             <button onClick={handleEmbed} disabled={!selectedFile}>임베딩 실행</button>
             <button onClick={handleReset}>리셋</button>

@@ -6,6 +6,7 @@ from pathlib import Path
 from transformers import Blip2Processor
 import unicom
 
+
 def extract_last_two_categories(path_str):
     parts = Path(path_str).parts
     if len(parts) >= 2:
@@ -71,12 +72,16 @@ if __name__ == "__main__":
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         preprocess = AutoProcessor.from_pretrained("google/siglip2-so400m-patch14-384")
         tokenizer = AutoTokenizer.from_pretrained("google/siglip2-so400m-patch14-384")
+    elif image_embedding_model_name == "imagebind":
+        image_embedding_model, preprocess = load_image_embedding_model("imagebind")
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+    elif image_embedding_model_name == "mobilenetv3":
+        image_embedding_model, preprocess = load_image_embedding_model("mobilenetv3")
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
     else:
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
 
-    print("📦 총 index 이미지 수:", len(dataset.index_image_ids))
     len_index_examples = len(dataset.index_image_ids)
     total_batches = len_index_examples // batch_size + (1 if len_index_examples % batch_size > 0 else 0)
     all_embeddings = []
@@ -130,6 +135,20 @@ if __name__ == "__main__":
                                                                             keepdim=True)  # (optional) cosine similarity정규화
             batch_embeddings_ndarray = batch_embeddings.cpu().numpy()
         elif image_embedding_model_name == "swin":
+            iimages = [i.iimage for i in batch_examples]
+            iimages = torch.stack(iimages).to(device)
+            with torch.no_grad():
+                batch_embeddings = image_embedding_model(iimages)
+            batch_embeddings_ndarray = batch_embeddings.cpu().numpy()
+        elif image_embedding_model_name == "imagebind":
+            iimages = [i.iimage for i in batch_examples]
+            iimages = torch.stack(iimages).to(device)
+            inputs = {ModalityType.VISION: iimages}
+            with torch.no_grad():
+                batch_embeddings = image_embedding_model(inputs)
+                batch_embeddings = batch_embeddings[ModalityType.VISION]
+            batch_embeddings_ndarray = batch_embeddings.cpu().numpy()
+        elif image_embedding_model == "mobilenetv3":
             iimages = [i.iimage for i in batch_examples]
             iimages = torch.stack(iimages).to(device)
             with torch.no_grad():

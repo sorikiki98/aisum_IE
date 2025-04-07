@@ -44,6 +44,12 @@ from timm import create_model
 from timm.data import create_transform
 from transformers import ViTModel, ViTImageProcessor, AutoProcessor, AutoModel, AutoTokenizer
 
+from imagebind import data
+from imagebind.models import imagebind_model
+from imagebind.models.imagebind_model import ModalityType
+
+from torchvision.models import mobilenet_v3_large, MobileNet_V3_Large_Weights
+
 warnings.filterwarnings("ignore", category=UserWarning, module="dinov2")
 
 
@@ -82,6 +88,10 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
         return 1024
     elif image_embedding_model_name == "siglip2":
         return 1152
+    elif image_embedding_model_name == "imagebind":
+        return 1024
+    elif image_embedding_model_name == "mobilenetv3":
+        return 1000
     else:
         raise ValueError("Invalid embedding model name")
 
@@ -90,11 +100,12 @@ def get_image_embedding_model_name():
     image_embedding_model_name = input("Enter embedding model name (vit, resnet152, efnet, magiclens_base, "
                                        "magiclens_large, convnextv2_small, convnextv2_base, convnextv2_large, "
                                        "resnext101, unicom_all, swin, blip2, openai_clip, laion_clip, "
-                                       "dinov2, siglip_so400m, siglip_large, siglip2): ")
+                                       "dinov2, siglip_so400m, siglip_large, siglip2, imagebind, mobilenetv3): ")
     if image_embedding_model_name not in ["vit", "efnet", "resnet152", "magiclens_base", "magiclens_large",
                                           "convnextv2_small", "convnextv2_base", "convnextv2_large",
                                           "resnext101", "unicom_all", "swin", "blip2", "openai_clip", "laion_clip",
-                                          "dinov2", "siglip_so400m", "siglip_large", "siglip2"]:
+                                          "dinov2", "siglip_so400m", "siglip_large", "siglip2", "imagebind",
+                                          "mobilenetv3"]:
         raise ValueError("Invalid embedding model name")
     return image_embedding_model_name
 
@@ -220,6 +231,24 @@ def load_image_embedding_model(image_embedding_model_name):
         return model, None
     elif image_embedding_model_name == "siglip2":
         model = AutoModel.from_pretrained("google/siglip2-so400m-patch14-384")
+        device = get_device()
+        model.to(device)
+        model.eval()
+        return model, None
+    elif image_embedding_model_name == "imagebind":
+        model = imagebind_model.imagebind_huge(pretrained=True)
+        device = get_device()
+        model.to(device)
+        model.eval()
+        return model, None
+    elif image_embedding_model_name == "mobilenetv3":
+        model = mobilenet_v3_large(weights=None)
+        model = model.to("cuda")
+
+        state_dict = torch.load("/home/jiwoo/magiclens/aisum_IE/models/mobilenet_v3_large-5c1a4163.pth",
+                                map_location="cuda")
+        model.load_state_dict(state_dict)
+
         device = get_device()
         model.to(device)
         model.eval()
@@ -377,6 +406,30 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         with torch.no_grad():
             outputs = image_embedding_model(**inputs)
         image_embeddings_ndarray = outputs.image_embeds.cpu().numpy()
+    elif image_embedding_model_name == "imagebind":
+        def preprocess(path, **kwargs):
+            return data.load_and_transform_vision_data([path], device=get_device())
+
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+        query_ids = dataset.query_image_ids
+        query_examples = dataset.prepare_query_examples(query_ids)
+        qimages = [q.qimage for q in query_examples]
+        qimages = torch.stack(qimages).to(get_device())
+        with torch.no_grad():
+            qembeds = image_embedding_model({ModalityType.VISION: qimages})
+            qembeds = qembeds[ModalityType.VISION]
+        image_embeddings_ndarray = qembeds.cpu().numpy()
+    elif image_embedding_model_name == "mobilenetv3":
+        preprocess = MobileNet_V3_Large_Weights.DEFAULT.transforms()
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+        query_ids = dataset.query_image_ids
+        query_examples = dataset.prepare_query_examples(query_ids)
+
+        qimages = [q.qimage for q in query_examples]
+        qimages = torch.stack(qimages).to(get_device())
+        with torch.no_grad():
+            qembeds = image_embedding_model(qimages)
+        image_embeddings_ndarray = qembeds.cpu().numpy()
     else:
         raise ValueError(f"Invalid embedding model name: {image_embedding_model_name}")
 

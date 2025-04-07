@@ -22,6 +22,7 @@ def load_faiss_index(image_embedding_model_name):
     else:
         return None
 
+
 def get_faiss_index_file_name(image_embedding_model_name):
     if image_embedding_model_name == "ViT":
         return "./index/faiss_index_ViT"
@@ -41,6 +42,7 @@ def get_faiss_index_file_name(image_embedding_model_name):
         return "./index/faiss_index_resnext101"
     else:
         raise ValueError("Invalid embedding model name")
+
 
 def load_or_create_faiss_index(image_embedding_model_name):
     index = load_faiss_index(image_embedding_model_name)
