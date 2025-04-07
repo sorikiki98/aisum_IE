@@ -115,14 +115,14 @@ def optimize_index(image_embedding_model_name):
     conn = connect_db()
     cur = conn.cursor()
 
-    print(f"📌 색인 최적화 시작: {index_name} ...")
+    print(f"색인 최적화 시작: {index_name} ...")
 
     reindex_start = time.time()
     cur.execute(f"REINDEX INDEX {index_name};")
     conn.commit()
     reindex_end = time.time()
     reindex_time = reindex_end - reindex_start
-    print(f"✅ REINDEX 완료! (소요 시간: {reindex_time:.2f}초)")
+    print(f"REINDEX 완료! (소요 시간: {reindex_time:.2f}초)")
 
     vacuum_start = time.time()
     cur.execute(f"VACUUM ANALYZE {table_name};")
@@ -188,19 +188,20 @@ def search_similar_vectors(image_embedding_model_name, query_ids, query_embeddin
     all_distances = []
 
     for idx, (query_id, query_embedding) in enumerate(zip(query_ids, query_embeddings)):
-        if category1 is None or category2 is None:
+        if category1 is None: 
             query = select_clause + "ORDER BY distance ASC LIMIT 10;"
             params = (query_embedding.tolist(),)
             label = f"🔎 [전체 검색] - Query #{idx + 1}: {query_id}"
-        elif category1 is not None and category2 is None:
+        elif category2 is None:  
             query = select_clause + "WHERE category1 = %s ORDER BY distance ASC LIMIT 10;"
             params = (query_embedding.tolist(), category1)
             label = f"🔍 [카테고리1 필터 검색] - Query #{idx + 1}: {query_id}"
-        elif category1 is not None and category2 is not None:
+        else: 
             query = select_clause + "WHERE category1 = %s AND category2 = %s ORDER BY distance ASC LIMIT 10;"
             params = (query_embedding.tolist(), category1, category2)
-            label = f"🔍 [카테고리 필터 검색] - Query #{idx + 1}: {query_id}"
+            label = f"🔍 [카테고리1,2 필터 검색] - Query #{idx + 1}: {query_id}"
 
+        print(query)
         start_time = time.perf_counter()
         cur.execute(query, params)
         results = cur.fetchall()

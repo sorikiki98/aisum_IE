@@ -1,54 +1,44 @@
 import pickle
 import sys
-import jax
-import jax.numpy as jnp
-import numpy as np
-import timm
-import torch
-import torch.nn as nn
-import jax
-import jax.numpy as jnp
 import warnings
-from torchvision import models
+
+import jax
+import jax.numpy as jnp
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
-import pickle
+from torchvision import models, transforms
+
 import timm
-from torchvision import transforms
+from timm import create_model
+from timm.data import create_transform
+
 from flax import serialization
 from scenic.projects.baselines.clip import tokenizer as clip_tokenizer
-from torchvision import models
+
+from transformers import (
+    ViTModel, 
+    ViTImageProcessor, 
+    Blip2Processor,
+    Blip2Model,
+    AutoProcessor, 
+    AutoModel, 
+    AutoTokenizer
+)
+
+import unicom
+from imagebind import data
+from imagebind.models import imagebind_model
+from imagebind.models.imagebind_model import ModalityType
 from models.resnet import ResNet152
 from models.resnext import ResNext101
 from models.magiclens import MagicLens
 from models.openai_clip import OpenAICLIP
 from models.laion_clip import LaionCLIP
-from dataset import EselTreeDatasetForMagicLens, EselTreeDatasetDefault
-from scenic.projects.baselines.clip import tokenizer as clip_tokenizer
-from transformers import ViTModel, ViTImageProcessor, Blip2Processor
-from transformers import Blip2Model
-
-import unicom
-from dataset import EselTreeDatasetForMagicLens, EselTreeDatasetDefault
-from models.magiclens import MagicLens
-from models.resnet import ResNet152
-from models.resnext import ResNext101
-
-from timm import create_model
-from timm.data import create_transform
-
-import unicom
-
-from timm import create_model
-from timm.data import create_transform
-from transformers import ViTModel, ViTImageProcessor, AutoProcessor, AutoModel, AutoTokenizer
-
-from imagebind import data
-from imagebind.models import imagebind_model
-from imagebind.models.imagebind_model import ModalityType
-
+from models.fashion_clip import FashionCLIP
 from torchvision.models import mobilenet_v3_large, MobileNet_V3_Large_Weights
+
+from dataset import EselTreeDatasetForMagicLens, EselTreeDatasetDefault
 
 warnings.filterwarnings("ignore", category=UserWarning, module="dinov2")
 
@@ -92,6 +82,8 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
         return 1024
     elif image_embedding_model_name == "mobilenetv3":
         return 1000
+    elif image_embedding_model_name == "fashionclip":
+        return 512
     else:
         raise ValueError("Invalid embedding model name")
 
@@ -100,12 +92,12 @@ def get_image_embedding_model_name():
     image_embedding_model_name = input("Enter embedding model name (vit, resnet152, efnet, magiclens_base, "
                                        "magiclens_large, convnextv2_small, convnextv2_base, convnextv2_large, "
                                        "resnext101, unicom_all, swin, blip2, openai_clip, laion_clip, "
-                                       "dinov2, siglip_so400m, siglip_large, siglip2, imagebind, mobilenetv3): ")
+                                       "dinov2, siglip_so400m, siglip_large, siglip2, imagebind, mobilenetv3, fashionclip): ")
     if image_embedding_model_name not in ["vit", "efnet", "resnet152", "magiclens_base", "magiclens_large",
                                           "convnextv2_small", "convnextv2_base", "convnextv2_large",
                                           "resnext101", "unicom_all", "swin", "blip2", "openai_clip", "laion_clip",
                                           "dinov2", "siglip_so400m", "siglip_large", "siglip2", "imagebind",
-                                          "mobilenetv3"]:
+                                          "mobilenetv3", "fashionclip"]:
         raise ValueError("Invalid embedding model name")
     return image_embedding_model_name
 
@@ -216,7 +208,6 @@ def load_image_embedding_model(image_embedding_model_name):
     elif image_embedding_model_name == "laion_clip":
         model = LaionCLIP()
         return model, None
-
     elif image_embedding_model_name == "siglip_so400m":
         model = AutoModel.from_pretrained("google/siglip-so400m-patch14-384")
         device = get_device()
@@ -248,10 +239,13 @@ def load_image_embedding_model(image_embedding_model_name):
         state_dict = torch.load("/home/jiwoo/magiclens/aisum_IE/models/mobilenet_v3_large-5c1a4163.pth",
                                 map_location="cuda")
         model.load_state_dict(state_dict)
-
         device = get_device()
         model.to(device)
         model.eval()
+        return model, None
+    elif image_embedding_model_name == "fashionclip":
+        device = get_device()
+        model = FashionCLIP("patrickjohncyh/fashion-clip", device=device)
         return model, None
 
 
@@ -271,7 +265,6 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
         query_ids = dataset.query_image_ids
         query_examples = dataset.prepare_query_examples(query_ids)
-
         qimages = [q.qimage for q in query_examples]
         qimages = torch.stack(qimages).to(get_device())
         with torch.no_grad():
@@ -282,9 +275,11 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
         query_ids = dataset.query_image_ids
         query_examples = dataset.prepare_query_examples(query_ids)
-        qimages = [i.qimage['pixel_values'].to(get_device()) for i in query_examples]
-        qimages = torch.cat(qimages, dim=0)
-
+        #preprocess 버전 2
+        qimages = [torch.from_numpy(i.qimage['pixel_values'][0]) for i in query_examples]
+        qimages = torch.stack(qimages).to(get_device())
+        #preprocess 버전 1
+        #qimages = [i.qimage['pixel_values'].to(get_device()) for i in query_examples]
         with torch.no_grad():
             outputs = image_embedding_model(qimages)
         image_embeddings = outputs.last_hidden_state[:, 0, :]
@@ -293,7 +288,6 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
         query_ids = dataset.query_image_ids
         query_examples = dataset.prepare_query_examples(query_ids)
-
         qimages = [q.qimage for q in query_examples]
         qimages = torch.stack(qimages).to(get_device())
         with torch.no_grad():
@@ -309,7 +303,6 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         query_examples = dataset.prepare_query_examples(query_ids)
         qimages = [q.qimage for q in query_examples]
         qimages = torch.stack(qimages).to(get_device())
-
         with torch.no_grad():
             qembeds = image_embedding_model(qimages)
             qembeds = qembeds / qembeds.norm(dim=-1, keepdim=True)  # optional: 정규화
@@ -319,7 +312,6 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=model_params)
         query_ids = dataset.query_image_ids
         query_examples = dataset.prepare_query_examples(query_ids)
-
         qimages = [q.qimage for q in query_examples]
         qimages = torch.stack(qimages).to(get_device())
         with torch.no_grad():
@@ -409,7 +401,6 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
     elif image_embedding_model_name == "imagebind":
         def preprocess(path, **kwargs):
             return data.load_and_transform_vision_data([path], device=get_device())
-
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
         query_ids = dataset.query_image_ids
         query_examples = dataset.prepare_query_examples(query_ids)
@@ -424,12 +415,18 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
         query_ids = dataset.query_image_ids
         query_examples = dataset.prepare_query_examples(query_ids)
-
         qimages = [q.qimage for q in query_examples]
         qimages = torch.stack(qimages).to(get_device())
         with torch.no_grad():
             qembeds = image_embedding_model(qimages)
         image_embeddings_ndarray = qembeds.cpu().numpy()
+    elif image_embedding_model_name == "fashionclip":
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
+        query_ids = dataset.query_image_ids
+        query_examples = dataset.prepare_query_examples(query_ids)
+        qimages = [q.qimage for q in query_examples]
+        qembeds = image_embedding_model.encode_images(qimages)  
+        image_embeddings_ndarray = np.array(qembeds, dtype=np.float32)
     else:
         raise ValueError(f"Invalid embedding model name: {image_embedding_model_name}")
 
