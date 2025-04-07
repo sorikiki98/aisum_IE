@@ -69,4 +69,3 @@ def main(model_name=None, category1=None, category2=None):
         'result_ids': all_ids,
         'result_distances': all_similarities
     }
-
