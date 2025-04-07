@@ -4,9 +4,7 @@ from scenic.projects.baselines.clip import tokenizer as clip_tokenizer
 from pgvector_database import *
 from pathlib import Path
 from transformers import Blip2Processor
-
-import sys
-
+import unicom
 
 def extract_last_two_categories(path_str):
     parts = Path(path_str).parts
@@ -59,7 +57,8 @@ if __name__ == "__main__":
     else:
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
-
+        
+    print("📦 총 index 이미지 수:", len(dataset.index_image_ids))
     len_index_examples = len(dataset.index_image_ids)
     total_batches = len_index_examples // batch_size + (1 if len_index_examples % batch_size > 0 else 0)
     all_embeddings = []

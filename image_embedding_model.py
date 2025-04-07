@@ -30,6 +30,12 @@ sys.path.append("/home/jiwoo/magiclens/aisum_IE/unicom_all")  # unicom이 있는
 from timm import create_model
 from timm.data import create_transform
 
+import sys
+sys.path.append("/home/jiwoo/magiclens/aisum_IE/unicom")  # unicom이 있는 상위 폴더
+import unicom
+
+from timm import create_model
+from timm.data import create_transform
 
 def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
     if image_embedding_model_name == "vit":
@@ -80,6 +86,7 @@ def get_device():
 
 
 def load_image_embedding_model(image_embedding_model_name):
+    print(f"📌 모델 이름 들어옴: {image_embedding_model_name}")
     if image_embedding_model_name == "vit":
         model = ViTModel.from_pretrained('google/vit-base-patch16-224-in21k')
         device = get_device()
@@ -224,7 +231,6 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=model_params)
         query_ids = dataset.query_image_ids
         query_examples = dataset.prepare_query_examples(query_ids)
-
         qimages = [q.qimage for q in query_examples]
         qimages = torch.stack(qimages).to(get_device())
 
