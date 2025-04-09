@@ -12,7 +12,7 @@ function App() {
   const modelOptions = [
     "efnet", "vit", "convnextv2_base", "convnextv2_large",
     "magiclens_base", "magiclens_large", "openai_clip", "laion_clip",
-    "blip2", "densenet121", "fashionclip","resnext101"
+    "blip2", "densenet121", "fashionclip","resnext101","coca_vit_l_14_mosoco","coca_vit_l_14"
   ];
 
   const handleFileChange = (event) => {

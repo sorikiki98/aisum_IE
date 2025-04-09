@@ -17,6 +17,8 @@ from scenic.projects.baselines.clip import tokenizer as clip_tokenizer
 from transformers import ViTModel, ViTImageProcessor
 from torchvision.models import densenet121
 from fashionclip_all.fashion_clip import FashionCLIP
+import torchvision.transforms as transforms
+import open_clip
 
 
 
@@ -41,6 +43,8 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
         return 1024
     elif image_embedding_model_name == "fashionclip":
         return 512
+    elif image_embedding_model_name == "coca_vit_l_14" or image_embedding_model_name == "coca_vit_l_14_mosoco":
+        return 768
     else:
         raise ValueError("Invalid embedding model name")
 
@@ -48,11 +52,11 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
 def get_image_embedding_model_name():
     image_embedding_model_name = input("Enter embedding model name (ViT, resnet152, efnet, magiclens_base, "
                                        "magiclens_large, convnextv2_small, convnextv2_base, convnextv2_large, "
-                                       "resnext101,densenet121,fashionclip): ")
+                                       "resnext101,densenet121,fashionclip,coca_vit_l_14, coca_vit_l_14_mosoco): ")
     print(image_embedding_model_name)
     if image_embedding_model_name not in ["ViT", "efnet", "resnet152", "magiclens_base", "magiclens_large",
                                           "convnextv2_small", "convnextv2_base", "convnextv2_large",
-                                          "resnext101","densenet121","fashionclip"]:
+                                          "resnext101","densenet121","fashionclip","coca_vit_l_14","coca_vit_l_14_mosoco"]:
         raise ValueError("Invalid embedding model name")
     return image_embedding_model_name
 
@@ -91,7 +95,7 @@ def load_image_embedding_model(image_embedding_model_name):
             "image": jnp.ones((1, 224, 224, 3), dtype=jnp.float32),
         }
         params = model.init(rng, dummpy_input)
-        with open(f"../models/magic_lens_clip_{model_size}.pkl", "rb") as f:
+        with open(f"models/magic_lens_clip_{model_size}.pkl", "rb") as f:
             model_bytes = pickle.load(f)
         params = serialization.from_bytes(params, model_bytes)
         params = jax.device_put(params)
@@ -134,6 +138,26 @@ def load_image_embedding_model(image_embedding_model_name):
         device = get_device()
         model = FashionCLIP("patrickjohncyh/fashion-clip", device=device)
         return model, None
+    elif image_embedding_model_name == "coca_vit_l_14":
+        device = get_device()
+        model, _, _ = open_clip.create_model_and_transforms(
+            model_name="coca_ViT-L-14",
+            pretrained='laion2b_s13b_b90k',
+            device=device
+        )
+        model.eval()
+        return model, None
+    elif image_embedding_model_name == "coca_vit_l_14_mosoco":
+        device = get_device()
+        model, _, _ = open_clip.create_model_and_transforms(
+            model_name="coca_ViT-L-14",
+            pretrained='mscoco_finetuned_laion2b_s13b_b90k',
+            device=device
+        )
+        model.eval()
+        return model, None
+
+    
 
 
 
@@ -201,6 +225,15 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         qimages = [q.qimage for q in query_examples]
         qembeds = image_embedding_model.encode_images(qimages)  
         image_embeddings_ndarray = np.array(qembeds, dtype=np.float32)
+    elif image_embedding_model_name in ["coca_vit_l_14", "coca_vit_l_14_mosoco"]:
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree",tokenizer=tokenizer)
+        query_ids = dataset.query_image_ids
+        query_examples = dataset.prepare_query_examples(query_ids)
+        qimages = [q.qimage for q in query_examples]
+        qimages = torch.stack(qimages).to(get_device())
+        with torch.no_grad():
+            qembeds = image_embedding_model.encode_image(qimages)
+        image_embeddings_ndarray = qembeds.cpu().numpy()
     else:
         raise ValueError(f"Invalid embedding model name: {image_embedding_model_name}")
 

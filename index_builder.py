@@ -22,7 +22,7 @@ if __name__ == "__main__":
     params, dataset = None, None
     tokenizer = clip_tokenizer.build_tokenizer()
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    batch_size = 512  # todo
+    batch_size =64  # todo
 
     if image_embedding_model_name.startswith("magiclens"):
         image_embedding_model, params = load_image_embedding_model(image_embedding_model_name)
@@ -36,7 +36,7 @@ if __name__ == "__main__":
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
     elif image_embedding_model_name == "fashionclip":
         image_embedding_model = FashionCLIP("patrickjohncyh/fashion-clip", device=device)
-        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)    
     else:
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
@@ -89,7 +89,13 @@ if __name__ == "__main__":
         elif image_embedding_model_name == "fashionclip":
             iimages = [i.iimage for i in batch_examples]
             batch_embeddings_ndarray = image_embedding_model.encode_images(iimages)
-            batch_embeddings_ndarray = np.array(batch_embeddings_ndarray, dtype=np.float32) #명시적 변환
+            batch_embeddings_ndarray = np.array(batch_embeddings_ndarray, dtype=np.float32)
+        elif image_embedding_model_name.startswith("coca_vit_l_14"):
+            iimages = [i.iimage for i in batch_examples]
+            iimages = torch.stack(iimages).to(device)
+            with torch.no_grad():
+                batch_embeddings = image_embedding_model.encode_image(iimages)
+            batch_embeddings_ndarray = batch_embeddings.cpu().numpy()
         else:
             iimages = [i.iimage for i in batch_examples]
             iimages = torch.stack(iimages).to(device)
