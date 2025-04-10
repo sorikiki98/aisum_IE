@@ -4,13 +4,18 @@ from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 import sys
 from pathlib import Path
-from uuid import uuid4
 import traceback
-import os
+import json
+import importlib
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
+with open("../config.json", "r", encoding="utf-8") as f:
+    config = json.load(f)
 
-from product_matching import main as product_matching_main
+sys.path.append(config["root_path"])
+
+from dataset import QueryDataset
+from pgvector_database import PGVectorDB
+from product_matching import ImageRetrieval
 
 app = FastAPI()
 
@@ -22,12 +27,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+def load_image_embedding_model_from_path(model_name: str, cfg: dict):
+    model_cfg = cfg["model"][model_name]
+    module = importlib.import_module(model_cfg["model_dir"])
+    class_name = model_cfg["model_name"]
+    cls = getattr(module, class_name)
+
+    return cls(model_name, cfg)
+
+
 @app.post("/embed/")
 async def embed_and_search_similar_images(
-    file: UploadFile = File(...),
-    model_name: str = Form(...),
-    category1: str = Form(None),
-    category2: str = Form(None),
+        file: UploadFile = File(...),
+        model_name: str = Form(...),
+        category1: str = Form(None),
+        category2: str = Form(None),
 ):
     print("📥 /embed/ POST 요청 도착")
     print(f"✅ 업로드된 파일 이름: {file.filename}")
@@ -35,47 +50,19 @@ async def embed_and_search_similar_images(
     print(f"[DEBUG] 전달된 model_name: {model_name}")
 
     try:
-        # Clean up test/images directory
-        project_root = Path(__file__).resolve().parent.parent
-        query_save_dir = project_root / "data" / "test" / "images"
-        if query_save_dir.exists():
-            for image_file in query_save_dir.glob("*"):
-                try:
-                    image_file.unlink()
-                except Exception as e:
-                    print(f"Warning: Failed to delete {image_file}: {e}")
-        query_save_dir.mkdir(parents=True, exist_ok=True)
+        dataset = QueryDataset("test", config)
+        dataset.clean_query_images()
+        await dataset.save_query_images(file)
+        query_image, query_id = dataset.prepare_query_images(0, 1)
 
-        # Read image bytes only once
-        image_bytes = await file.read()
-        
-        # Verify image bytes are not empty
-        if not image_bytes:
-            raise ValueError("Uploaded file is empty")
+        database = PGVectorDB(model_name, config)
+        model = load_image_embedding_model_from_path(model_name, config)
 
-        # Save query image to data/test/images
-        extension = Path(file.filename).suffix
-        query_filename = f"{uuid4().hex}{extension}"
-        query_save_path = query_save_dir / query_filename
+        retrieval_model = ImageRetrieval(model, database, config)
+        retrieval_result = retrieval_model(query_image, query_id, category1, category2)
 
-        with open(query_save_path, "wb") as f:
-            f.write(image_bytes)
-        
-        try:
-            from PIL import Image
-            Image.open(query_save_path).verify()
-        except Exception as e:
-            raise ValueError(f"Saved image is invalid: {e}")
-             
-        result = product_matching_main(
-            model_name=model_name,
-            category1=category1,
-            category2=category2
-        )
-
-        # 현재는 첫 번째 쿼리 이미지의 결과만 사용
-        top_k_paths = result['result_paths'][0] if result['result_paths'] else []
-        top_k_distances = result['result_distances'][0]
+        top_k_paths = retrieval_result['result_paths'][0] if retrieval_result['result_paths'] else []
+        top_k_distances = retrieval_result['result_distances'][0]
 
         return JSONResponse(content={
             "similar_images": top_k_paths,
@@ -87,19 +74,18 @@ async def embed_and_search_similar_images(
         print(traceback.format_exc())
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
-# 정적 파일 경로: 프론트엔드 빌드
-frontend_build_path = Path(__file__).resolve().parent / "aisum-ui" / "build"
-app.mount("/static", StaticFiles(directory=frontend_build_path / "static"), name="static")
 
-# output 디렉토리도 정적 파일로 마운트
-project_root = Path(__file__).parent.parent
+project_root = config["root_path"]
+frontend_build_path = Path(project_root) / "server" / "aisum-ui" / "build"
+
+app.mount("/static", StaticFiles(directory=frontend_build_path / "static"), name="static")
 app.mount(
-    "/outputs",
-    StaticFiles(directory=project_root / "outputs"),
+    f"{project_root}/outputs",
+    StaticFiles(directory=Path(project_root) / "outputs"),
     name="outputs"
 )
-
 app.mount("/", StaticFiles(directory=frontend_build_path, html=True), name="frontend")
+
 
 # SPA 라우팅
 @app.get("/{full_path:path}")

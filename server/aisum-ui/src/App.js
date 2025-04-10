@@ -10,11 +10,8 @@ function App() {
   const [resultsByModel, setResultsByModel] = useState({});
   const fileInputRef = useRef(null);
   const modelOptions = [
-    "vit", "efnet", "resnet152", "magiclens_base", "magiclens_large",
-    "convnextv2_small", "convnextv2_base", "convnextv2_large",
-    "resnext101", "unicom_all", "swin", "blip2", "openai_clip", "laion_clip",
-    "dinov2", "siglip_so400m", "siglip_large", "siglip2", "imagebind",
-    "mobilenetv3", "fashionclip"];
+    "magiclens", "unicom", "imagebind", "coca_mscoco", "coca_laion2b", "openai_clip", "laion_clip",
+    "fashion_clip", "vit", "swin", "efnet", "siglip", "blip2"];
     
   const handleFileChange = (event) => {
     const file = event.target.files[0];
@@ -47,7 +44,7 @@ function App() {
         const distances = response.data.distances;
 
         const fullUrls = imagePaths.map(
-          (path) => `http://127.0.0.1:8000/${path.replace(/\\/g, "/")}`
+          (path) => `http://127.0.0.1:8000${path.replace(/\\/g, "/")}`
         );
 
         newResults[model] = {
