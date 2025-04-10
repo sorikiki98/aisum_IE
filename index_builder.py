@@ -1,79 +1,117 @@
-from image_embedding_model import *
-from dataset import EselTreeDatasetForMagicLens, EselTreeDatasetDefault
-from scenic.projects.baselines.clip import tokenizer as clip_tokenizer
-from pgvector_database import *
-from pathlib import Path
-from transformers import Blip2Processor
-import unicom
+import json
+import importlib
+import sys
+from dataset import IndexDataset
+from pgvector_database import PGVectorDB
+from model_utils import ImageEmbeddingModel
+
+
+def load_image_embedding_model_from_path(model_name: str, cfg: dict):
+    model_cfg = cfg["model"][model_name]
+    module = importlib.import_module(model_cfg["model_dir"])
+    class_name = model_cfg["model_name"]
+    cls = getattr(module, class_name)
+
+    if not issubclass(cls, ImageEmbeddingModel):
+        raise TypeError(f"{class_name} does not inherit from ImageEmbeddingModel")
+
+    return cls(model_name, cfg)
+
 
 if __name__ == "__main__":
-    image_embedding_model_name = get_image_embedding_model_name()
-    # faiss_index_with_ids = load_or_create_faiss_index(image_embedding_model_name)
+    with open("config.json", "r", encoding="utf-8") as f:
+        config = json.load(f)
 
-    params, dataset = None, None
-    tokenizer = clip_tokenizer.build_tokenizer()
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    batch_size = 128
+    sys.path.append(config["root_path"])
 
-    if image_embedding_model_name.startswith("magiclens"):
-        image_embedding_model, params = load_image_embedding_model(image_embedding_model_name)
-        dataset = EselTreeDatasetForMagicLens(dataset_name="eseltree", tokenizer=tokenizer)
-    elif image_embedding_model_name.startswith("convnextv2"):
+    image_embedding_model_name = input("Enter embedding model name: ")
+
+    if image_embedding_model_name not in config["model"]:
+        raise ValueError("Invalid embedding model name.")
+
+    dataset = IndexDataset("eseltree", config)
+    database = PGVectorDB(image_embedding_model_name, config)
+
+    model = load_image_embedding_model_from_path(image_embedding_model_name, config)
+    batch_size = config["model"][image_embedding_model_name]["batch_size"]
+
+    len_index_images = len(dataset.index_image_ids)
+    total_batches = len_index_images // batch_size + (1 if len_index_images % batch_size > 0 else 0)
+    all_embeddings = []
+
+    for batch_idx in range(total_batches):
+        batch_images, batch_ids, batch_cat1s, batch_cat2s = dataset.prepare_index_images(batch_idx, batch_size)
+        batch_embeddings_ndarray = model(batch_images)
+        database.insert_image_embeddings_into_postgres(batch_ids, batch_embeddings_ndarray,
+                                                       batch_cat1s, batch_cat2s)
+    '''
+    if image_embedding_model_name.startswith("convnextv2"):
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
-        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer,
+                                         image_embedding_model_name=image_embedding_model_name)
     elif image_embedding_model_name == 'vit':
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         preprocess = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224-in21k')
-        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
-    elif image_embedding_model_name == "unicom_all":
-        image_embedding_model, preprocess = load_image_embedding_model(image_embedding_model_name)  # 모델명 선택 가능
-        image_embedding_model = image_embedding_model.to(device)
-        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess,
+                                         image_embedding_model_name=image_embedding_model_name)
     elif image_embedding_model_name == "swin":
         image_embedding_model, preprocess = load_image_embedding_model("swin_base_patch4_window7_224")
-        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess
+                                         , image_embedding_model_name=image_embedding_model_name)
     elif image_embedding_model_name == 'blip2':
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         preprocess = Blip2Processor.from_pretrained('Salesforce/blip2-flan-t5-xxl')
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess,
-                                         prompt="Question: Describe the product. Answer:")
+                                         prompt="Question: Describe the product. Answer:"
+                                         , image_embedding_model_name=image_embedding_model_name)
     elif image_embedding_model_name == 'openai_clip':
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         preprocess = image_embedding_model.preprocess
-        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess
+                                         , image_embedding_model_name=image_embedding_model_name)
     elif image_embedding_model_name == 'laion_clip':
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         preprocess = image_embedding_model.preprocess
-        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess
+                                         , image_embedding_model_name=image_embedding_model_name)
     elif image_embedding_model_name == 'dinov2':
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
-        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=None)
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=None
+                                         , image_embedding_model_name=image_embedding_model_name)
     elif image_embedding_model_name == 'siglip_so400':
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         preprocess = AutoProcessor.from_pretrained("google/siglip-so400m-patch14-384")
         tokenizer = AutoTokenizer.from_pretrained("google/siglip-so400m-patch14-384")
-        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess
+                                         , image_embedding_model_name=image_embedding_model_name)
     elif image_embedding_model_name == 'siglip_large':
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         preprocess = AutoProcessor.from_pretrained("google/siglip-large-patch16-384")
         tokenizer = AutoTokenizer.from_pretrained("google/siglip-large-patch16-384")
-        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess
+                                         , image_embedding_model_name=image_embedding_model_name)
     elif image_embedding_model_name == 'siglip2':
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         preprocess = AutoProcessor.from_pretrained("google/siglip2-so400m-patch14-384")
         tokenizer = AutoTokenizer.from_pretrained("google/siglip2-so400m-patch14-384")
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess
+                                         , image_embedding_model_name=image_embedding_model_name)
     elif image_embedding_model_name == "imagebind":
         image_embedding_model, preprocess = load_image_embedding_model("imagebind")
-        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess
+                                         , image_embedding_model_name=image_embedding_model_name)
     elif image_embedding_model_name == "mobilenetv3":
         image_embedding_model, preprocess = load_image_embedding_model("mobilenetv3")
-        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess
+                                         , image_embedding_model_name=image_embedding_model_name)
     elif image_embedding_model_name == "fashionclip":
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
-        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer
+                                         , image_embedding_model_name=image_embedding_model_name)
     else:
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
-        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer
+                                         , image_embedding_model_name=image_embedding_model_name)
 
     len_index_examples = len(dataset.index_image_ids)
     total_batches = len_index_examples // batch_size + (1 if len_index_examples % batch_size > 0 else 0)
@@ -181,15 +219,11 @@ if __name__ == "__main__":
         elif image_embedding_model_name == "fashionclip":
             iimages = [i.iimage for i in batch_examples]
             batch_embeddings_ndarray = image_embedding_model.encode_images(iimages)
-            batch_embeddings_ndarray = np.array(batch_embeddings_ndarray, dtype=np.float32) 
+            batch_embeddings_ndarray = np.array(batch_embeddings_ndarray, dtype=np.float32)
         else:
             iimages = [i.iimage for i in batch_examples]
             iimages = torch.stack(iimages).to(device)
             with torch.no_grad():
                 batch_embeddings = image_embedding_model(iimages)
             batch_embeddings_ndarray = batch_embeddings.cpu().numpy()
-        # insert_image_embeddings_into_faiss_index(faiss_index_with_ids, batch_embeddings_ndarray, batch_ids)
-        # save_faiss_index_to_disk(faiss_index_with_ids, image_embedding_model_name)
-        # print_faiss_index_info(faiss_index_with_ids)
-        insert_image_embeddings_into_postgres(image_embedding_model_name, batch_ids, batch_embeddings_ndarray,
-                                              batch_cat1s, batch_cat2s)
+        '''

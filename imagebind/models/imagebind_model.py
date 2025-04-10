@@ -477,7 +477,7 @@ class ImageBindModel(nn.Module):
         return outputs
 
 
-def imagebind_huge(pretrained=False):
+def imagebind_huge(weight_folder_path, pretrained=False):
     model = ImageBindModel(
         vision_embed_dim=1280,
         vision_num_blocks=32,
@@ -491,7 +491,7 @@ def imagebind_huge(pretrained=False):
     )
 
     if pretrained:
-        weight_path = "../models/imagebind_huge.pth"
+        weight_path = f"{str(weight_folder_path)}/imagebind_huge.pth"
         model.load_state_dict(torch.load(weight_path))
         """
         if not os.path.exists(weight_path):

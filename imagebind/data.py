@@ -325,10 +325,10 @@ def load_and_transform_video_data(
 
         all_video = []
         for clip_timepoints in all_clips_timepoints:
-            # Read the clip, get frames
+            # Read the openai_clip, get frames
             clip = video.get_clip(clip_timepoints[0], clip_timepoints[1])
             if clip is None:
-                raise ValueError("No clip found")
+                raise ValueError("No openai_clip found")
             video_clip = frame_sampler(clip["video"])
             video_clip = video_clip / 255.0  # since this is float, need 0-1
 
