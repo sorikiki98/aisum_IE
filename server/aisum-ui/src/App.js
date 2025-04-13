@@ -14,7 +14,7 @@ function App() {
     "convnextv2_small", "convnextv2_base", "convnextv2_large",
     "resnext101", "unicom_all", "swin", "blip2", "openai_clip", "laion_clip",
     "dinov2", "siglip_so400m", "siglip_large", "siglip2", "imagebind",
-    "mobilenetv3", "fashionclip"];
+    "mobilenetv3", "fashionclip", "sam2"];
     
   const handleFileChange = (event) => {
     const file = event.target.files[0];

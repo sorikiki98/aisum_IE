@@ -7,6 +7,7 @@ import jax.numpy as jnp
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torchvision import models, transforms
 
 import timm
@@ -36,6 +37,8 @@ from models.magiclens import MagicLens
 from models.openai_clip import OpenAICLIP
 from models.laion_clip import LaionCLIP
 from models.fashion_clip import FashionCLIP
+from sam2.build_sam import build_sam2
+from sam2.sam2_image_predictor import SAM2ImagePredictor
 from torchvision.models import mobilenet_v3_large, MobileNet_V3_Large_Weights
 
 from dataset import EselTreeDatasetForMagicLens, EselTreeDatasetDefault
@@ -84,6 +87,8 @@ def get_num_dimensions_of_image_embedding_model(image_embedding_model_name):
         return 1000
     elif image_embedding_model_name == "fashionclip":
         return 512
+    elif image_embedding_model_name == "sam2":
+        return 256
     else:
         raise ValueError("Invalid embedding model name")
 
@@ -92,12 +97,12 @@ def get_image_embedding_model_name():
     image_embedding_model_name = input("Enter embedding model name (vit, resnet152, efnet, magiclens_base, "
                                        "magiclens_large, convnextv2_small, convnextv2_base, convnextv2_large, "
                                        "resnext101, unicom_all, swin, blip2, openai_clip, laion_clip, "
-                                       "dinov2, siglip_so400m, siglip_large, siglip2, imagebind, mobilenetv3, fashionclip): ")
+                                       "dinov2, siglip_so400m, siglip_large, siglip2, imagebind, mobilenetv3, fashionclip, sam2): ")
     if image_embedding_model_name not in ["vit", "efnet", "resnet152", "magiclens_base", "magiclens_large",
                                           "convnextv2_small", "convnextv2_base", "convnextv2_large",
                                           "resnext101", "unicom_all", "swin", "blip2", "openai_clip", "laion_clip",
                                           "dinov2", "siglip_so400m", "siglip_large", "siglip2", "imagebind",
-                                          "mobilenetv3", "fashionclip"]:
+                                          "mobilenetv3", "fashionclip", "sam2"]:
         raise ValueError("Invalid embedding model name")
     return image_embedding_model_name
 
@@ -246,6 +251,9 @@ def load_image_embedding_model(image_embedding_model_name):
     elif image_embedding_model_name == "fashionclip":
         device = get_device()
         model = FashionCLIP("patrickjohncyh/fashion-clip", device=device)
+        return model, None
+    elif image_embedding_model_name == "sam2":
+        model = SAM2ImagePredictor.from_pretrained("facebook/sam2-hiera-large")
         return model, None
 
 
@@ -427,6 +435,24 @@ def embed_images(image_embedding_model, image_embedding_model_name, model_params
         qimages = [q.qimage for q in query_examples]
         qembeds = image_embedding_model.encode_images(qimages)  
         image_embeddings_ndarray = np.array(qembeds, dtype=np.float32)
+    elif image_embedding_model_name == "sam2":
+        preprocess = SAM2ImagePredictor.from_pretrained("facebook/sam2-hiera-large")
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
+        query_ids = dataset.query_image_ids
+        query_examples = dataset.prepare_query_examples(query_ids)
+        qimages = [q.qimage for q in query_examples]
+        embeddings = []
+        with torch.no_grad():
+            for image in qimages:
+                image_embedding_model.set_image(image)
+                features = image_embedding_model.get_image_embedding()
+                features = features.mean(dim=(-2, -1))
+                features = features.squeeze(0)
+                features = F.normalize(features, p=2, dim=0)
+                embedding = features.detach().cpu().numpy()
+                embeddings.append(embedding)
+        image_embeddings_ndarray = np.stack(embeddings)
+        return query_ids, image_embeddings_ndarray
     else:
         raise ValueError(f"Invalid embedding model name: {image_embedding_model_name}")
 

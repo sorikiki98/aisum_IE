@@ -77,7 +77,7 @@ def process_img_to_torch(image_path: str, size: int, preprocess=None, prompt=Non
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
         return preprocess(img)
-    elif "SiglipProcessor" in str(type(preprocess)):  # SigLIP processor인 경우
+    elif "SiglipProcessor" in str(type(preprocess)) or "SAM2" in str(type(preprocess)):  # SigLIP 또는 SAM2 processor인 경우
         return img
     else:
         if prompt is None:
@@ -161,7 +161,7 @@ class EselTreeDatasetDefault(Dataset):
         self.tokenizer = tokenizer
 
         project_root = Path(__file__).parent
-        index_image_folder = project_root / "data" / "eseltree" / "images"
+        index_image_folder = project_root / "data_three" / "eseltree" / "images"
         index_image_files = sorted(index_image_folder.glob("**/*.jpg"))
         index_image_ids_with_cats = [str(file).split(".")[0] for file in index_image_files]
         index_image_ids = [file.stem for file in index_image_files]

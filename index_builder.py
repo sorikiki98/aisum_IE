@@ -4,6 +4,7 @@ from scenic.projects.baselines.clip import tokenizer as clip_tokenizer
 from pgvector_database import *
 from pathlib import Path
 from transformers import Blip2Processor
+import torch.nn.functional as F
 import unicom
 
 if __name__ == "__main__":
@@ -47,7 +48,7 @@ if __name__ == "__main__":
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
     elif image_embedding_model_name == 'dinov2':
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
-        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=None)
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
     elif image_embedding_model_name == 'siglip_so400':
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         preprocess = AutoProcessor.from_pretrained("google/siglip-so400m-patch14-384")
@@ -62,6 +63,7 @@ if __name__ == "__main__":
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         preprocess = AutoProcessor.from_pretrained("google/siglip2-so400m-patch14-384")
         tokenizer = AutoTokenizer.from_pretrained("google/siglip2-so400m-patch14-384")
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
     elif image_embedding_model_name == "imagebind":
         image_embedding_model, preprocess = load_image_embedding_model("imagebind")
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=preprocess)
@@ -71,9 +73,12 @@ if __name__ == "__main__":
     elif image_embedding_model_name == "fashionclip":
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
         dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
+    elif image_embedding_model_name == "sam2":
+        image_embedding_model, preprocess = load_image_embedding_model(image_embedding_model_name)
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer, preprocess=image_embedding_model)
     else:
         image_embedding_model, _ = load_image_embedding_model(image_embedding_model_name)
-        dataset = EselTreeDatasetDefault(dataset_name="eseltree", tokenizer=tokenizer)
+        dataset = EselTreeDatasetDefault(dataset_name="eseltree")
 
     len_index_examples = len(dataset.index_image_ids)
     total_batches = len_index_examples // batch_size + (1 if len_index_examples % batch_size > 0 else 0)
@@ -182,6 +187,20 @@ if __name__ == "__main__":
             iimages = [i.iimage for i in batch_examples]
             batch_embeddings_ndarray = image_embedding_model.encode_images(iimages)
             batch_embeddings_ndarray = np.array(batch_embeddings_ndarray, dtype=np.float32) 
+        elif image_embedding_model_name == "sam2":
+            batch_examples = dataset.prepare_index_examples(batch_ids_with_cats)
+            iimages = [i.iimage for i in batch_examples]
+            embeddings = []
+            with torch.no_grad():
+                for image in iimages:
+                    image_embedding_model.set_image(image)
+                    features = image_embedding_model.get_image_embedding()
+                    features = features.mean(dim=(-2, -1))
+                    features = features.squeeze(0)
+                    features = F.normalize(features, p=2, dim=0)
+                    embedding = features.detach().cpu().numpy() 
+                    embeddings.append(embedding)
+            batch_embeddings_ndarray = np.stack(embeddings) 
         else:
             iimages = [i.iimage for i in batch_examples]
             iimages = torch.stack(iimages).to(device)

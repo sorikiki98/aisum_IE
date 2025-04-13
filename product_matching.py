@@ -3,7 +3,6 @@ import shutil
 from PIL import Image
 from pathlib import Path
 from image_embedding_model import *
-from vector_database import *
 from pgvector_database import *
 
 
