@@ -1,6 +1,7 @@
 from model_utils import ImageEmbeddingModel
 from tqdm import tqdm
 import torch
+import os
 from dreamsim import dreamsim
 
 
@@ -12,7 +13,8 @@ class DreamSim(ImageEmbeddingModel):
             pretrained=True,
             device=self.device,
             use_patch_model=False,
-            dreamsim_type="dinov2_vitb14"
+            dreamsim_type="ensemble",
+            cache_dir=str(os.path.join(self.root_path, self.model_cfg["model_dir"]))
         )
 
         self._model = model
@@ -29,15 +31,15 @@ class DreamSim(ImageEmbeddingModel):
         processed_images = []
         with tqdm(total=len(pil_images), desc="Indexing examples") as progress:
             for img in pil_images:
-                tensor = self._preprocess(img)        
-                tensor = tensor.squeeze(0)             
+                tensor = self._preprocess(img)
+                tensor = tensor.squeeze(0)
                 processed_images.append(tensor)
                 progress.update(1)
 
-        iimages = torch.stack(processed_images).to(self.device)  
+        iimages = torch.stack(processed_images).to(self.device)
 
         with torch.no_grad():
-            image_features = self.model.embed(iimages)  
+            image_features = self.model.embed(iimages)
 
         norm_factors = image_features.norm(dim=-1, keepdim=True)
         image_features /= norm_factors
