@@ -151,8 +151,6 @@ class PGVectorDB:
         self.print_pgvector_info()
 
     def search_similar_vectors(self, query_ids, query_embeddings, category1, category2):
-        category1 = category1[0] if category1 else None  # todo
-        category2 = category2[0] if category2 else None  # todo
         table_name = f"image_embeddings_{self.image_embedding_model_name}"
         config = self.config
 
@@ -185,7 +183,6 @@ class PGVectorDB:
                 params = (query_embedding.tolist(), category1, category2)
                 label = f"🔍 [카테고리1,2 필터 검색] - Query #{idx + 1}: {query_id}"
 
-            print(query)
             start_time = time.perf_counter()
             cur.execute(query, params)
             results = cur.fetchall()
