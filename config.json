@@ -91,11 +91,17 @@
       "num_dimension": 768,
       "batch_size": 4
     },
-    "DreamSim": {
-      "model_dir": "dreamsim_",
+    "dreamsim": {
+      "model_dir": "dream_sim",
       "model_name": "DreamSim",
-      "num_dimension": 768,
+      "num_dimension": 1792,
       "batch_size": 64
-    }
+    },
+    "marqo_fashionclip": {
+      "model_dir": "marqo_fashionclip",
+      "model_name": "MarqoFashionCLIP",
+      "num_dimension": 512,
+      "batch_size": 64
+    } 
   }
 }
