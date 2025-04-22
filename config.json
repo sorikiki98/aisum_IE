@@ -1,5 +1,5 @@
 {
-  "root_path": "/mnt/c/Users/SMU/Documents/aisum_IE",
+  "root_path": "/mnt/c/Users/user/PycharmProjects/aisum_IE",
   "database": {
     "dbname": "postgres",
     "user": "postgres",
@@ -8,9 +8,9 @@
     "port": "5432"
   },
   "data": {
-    "index_image_folder_path": "/mnt/c/Users/SMU/Documents/aisum_IE/data/eseltree/images",
-    "query_image_folder_path": "/mnt/c/Users/SMU/Documents/aisum_IE/data/test/images",
-    "retrieved_image_folder_path": "/mnt/c/Users/SMU/Documents/aisum_IE/outputs"
+    "index_image_folder_path": "/mnt/c/Users/user/PycharmProjects/aisum_IE/data/eseltree/images",
+    "query_image_folder_path": "/mnt/c/Users/user/PycharmProjects/aisum_IE/data/test/images",
+    "retrieved_image_folder_path": "/mnt/c/Users/user/PycharmProjects/aisum_IE/outputs"
   },
   "model": {
     "magiclens": {
@@ -29,7 +29,7 @@
       "model_dir": "imagebind",
       "model_name": "ImageBind",
       "num_dimension": 1024,
-      "batch_size": 32
+      "batch_size": 128
     },
     "openai_clip": {
       "model_dir": "openai_clip",
@@ -41,7 +41,7 @@
       "model_dir": "laion_clip",
       "model_name": "LaionCLIP",
       "num_dimension": 1024,
-      "batch_size": 32
+      "batch_size": 16
     },
     "coca_mscoco": {
       "model_dir": "coca",
@@ -77,7 +77,7 @@
       "model_dir": "swin",
       "model_name": "Swin",
       "num_dimension": 1024,
-      "batch_size": 512
+      "batch_size": 64
     },
     "siglip": {
       "model_dir": "siglip",
@@ -91,10 +91,10 @@
       "num_dimension": 768,
       "batch_size": 4
     },
-    "DreamSim": {
-      "model_dir": "dreamsim_",
+    "dreamsim": {
+      "model_dir": "dream_sim",
       "model_name": "DreamSim",
-      "num_dimension": 768,
+      "num_dimension": 1792,
       "batch_size": 64
     }
   }
