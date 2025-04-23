@@ -11,7 +11,8 @@ function App() {
   const fileInputRef = useRef(null);
   const modelOptions = [
     "dreamsim", "magiclens", "unicom", "imagebind", "coca_mscoco", "coca_laion2b", "openai_clip", "laion_clip",
-    "fashion_clip", "vit", "swin", "efnet", "siglip", "blip2"];
+    "fashion_clip", "vit", "swin", "efnet", "siglip", "blip2", "marqo_fashionclip", "marqo_fashionsiglip",
+    "marqo_ecommerce_b", "marqo_ecommerce_l"];
     
   const handleFileChange = (event) => {
     const file = event.target.files[0];

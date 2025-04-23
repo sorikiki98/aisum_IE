@@ -47,7 +47,7 @@ class PGVectorDB:
         try:
             for id, embedding, cat1, cat2 in zip(ids, image_embeddings, cat1s, cat2s):
                 query = f"""
-                    INSERT INTO "{table_name}" (id, embedding, category1, category2)
+                    INSERT INTO {table_name} (id, embedding, category1, category2)
                     VALUES (%s, %s, %s, %s)
                     ON CONFLICT (id) DO NOTHING;
                 """
