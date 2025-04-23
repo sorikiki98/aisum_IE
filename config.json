@@ -96,6 +96,30 @@
       "model_name": "DreamSim",
       "num_dimension": 1792,
       "batch_size": 64
+    },
+    "marqo_fashionclip": {
+      "model_dir": "marqo",
+      "model_name": "Marqo",
+      "num_dimension": 512,
+      "batch_size": 128
+    },
+    "marqo_fashionsiglip": {
+      "model_dir": "marqo",
+      "model_name": "Marqo",
+      "num_dimension": 768,
+      "batch_size": 128
+    },
+    "marqo_ecommerce_b": {
+      "model_dir": "marqo",
+      "model_name": "Marqo",
+      "num_dimension": 768,
+      "batch_size": 128
+    },
+    "marqo_ecommerce_l": {
+      "model_dir": "marqo",
+      "model_name": "Marqo",
+      "num_dimension": 1024,
+      "batch_size": 32
     }
   }
 }
