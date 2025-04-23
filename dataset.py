@@ -23,7 +23,7 @@ class IndexDataset:
     def prepare_index_images(self, batch_idx, batch_size):
         batch_files = self.index_image_files[batch_idx * batch_size: (batch_idx + 1) * batch_size]
         batch_ids = self.index_image_ids[batch_idx * batch_size: (batch_idx + 1) * batch_size]
-        batch_ids = np.ascontiguousarray(np.array(batch_ids), dtype=np.int64)
+        batch_ids = np.array(batch_ids)
         batch_cat1s = self.index_image_cat1s[batch_idx * batch_size: (batch_idx + 1) * batch_size]
         batch_cat2s = self.index_image_cat2s[batch_idx * batch_size: (batch_idx + 1) * batch_size]
         batch_images = []
@@ -69,7 +69,7 @@ class QueryDataset:
     def prepare_query_images(self, batch_idx, batch_size):
         batch_files = self.query_image_files[batch_idx * batch_size: (batch_idx + 1) * batch_size]
         batch_ids = self.query_image_ids[batch_idx * batch_size: (batch_idx + 1) * batch_size]
-        batch_ids = np.ascontiguousarray(np.array(batch_ids), dtype=np.int64)
+        batch_ids = np.array(batch_ids)
         batch_images = []
 
         with tqdm(total=len(batch_files), desc="Prepare PIL Images") as progress:

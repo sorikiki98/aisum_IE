@@ -16,6 +16,7 @@ sys.path.append(config["root_path"])
 from dataset import QueryDataset
 from pgvector_database import PGVectorDB
 from product_matching import ImageRetrieval
+from ensemble_retrieval import EnsembleImageRetrieval
 
 app = FastAPI()
 
@@ -55,20 +56,35 @@ async def embed_and_search_similar_images(
         await dataset.save_query_images(file)
         query_image, query_id = dataset.prepare_query_images(0, 1)
 
-        database = PGVectorDB(model_name, config)
-        model = load_image_embedding_model_from_path(model_name, config)
+        if model_name == "ensemble":
+            # 앙상블 검색만 실행
+            models = {}
+            ensemble_model_names = ["magiclens", "dreamsim", "swin", "unicom", "marqo_ecommerce_l"]
+            
+            for name in ensemble_model_names:
+                db = PGVectorDB(name, config)
+                mdl = load_image_embedding_model_from_path(name, config)
+                models[name] = ImageRetrieval(mdl, db, config)
 
-        retrieval_model = ImageRetrieval(model, database, config)
-        retrieval_result = retrieval_model(query_image, query_id, category1, category2)
-
-        top_k_paths = retrieval_result['result_paths'][0] if retrieval_result['result_paths'] else []
-        top_k_distances = retrieval_result['result_distances'][0]
-
-        return JSONResponse(content={
-            "similar_images": top_k_paths,
-            "distances": top_k_distances
-        })
-
+            ensemble_model = EnsembleImageRetrieval(models)
+            result = ensemble_model(query_image, query_id, category1, category2)
+            
+            return JSONResponse(content={
+                "similar_images": result['result_paths'][0] if result['result_paths'] else [],
+                "distances": result['result_distances'][0]
+            })
+        else:
+            # 단일 모델 검색
+            database = PGVectorDB(model_name, config)
+            model = load_image_embedding_model_from_path(model_name, config)
+            retrieval_model = ImageRetrieval(model, database, config)
+            result = retrieval_model(query_image, query_id, category1, category2)
+            
+            return JSONResponse(content={
+                "similar_images": result['result_paths'][0] if result['result_paths'] else [],
+                "distances": result['result_distances'][0]
+            })
+        
     except Exception as e:
         print(f"❌ 처리 실패: {e}")
         print(traceback.format_exc())
