@@ -5,6 +5,7 @@ function App() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewURL, setPreviewURL] = useState(null);
   const [selectedModels, setSelectedModels] = useState([]);
+  const [useEnsemble, setUseEnsemble] = useState(false);
   const [category1, setCategory1] = useState("");
   const [category2, setCategory2] = useState("");
   const [resultsByModel, setResultsByModel] = useState({});
@@ -28,7 +29,7 @@ function App() {
   };
 
   const handleEmbed = async () => {
-    if (!selectedFile || selectedModels.length === 0) return;
+    if (!selectedFile || (selectedModels.length === 0 && !useEnsemble)) return;
 
     const newResults = {};
 
@@ -41,8 +42,18 @@ function App() {
 
       try {
         const response = await axios.post("http://127.0.0.1:8000/embed/", formData);
-        const imagePaths = response.data.similar_images;
-        const distances = response.data.distances;
+        const result = response.data;
+        
+        if (!result) {
+          throw new Error('서버에서 유효한 결과를 받지 못했습니다.');
+        }
+
+        const imagePaths = result.similar_images || [];
+        const distances = result.distances || [];
+
+        if (!imagePaths.length || !distances.length) {
+          throw new Error('검색 결과가 없습니다.');
+        }
 
         const fullUrls = imagePaths.map(
           (path) => `http://127.0.0.1:8000${path.replace(/\\/g, "/")}`
@@ -53,7 +64,77 @@ function App() {
           distances: distances
         };
       } catch (error) {
-        alert(`모델 [${model}] 처리 중 에러 발생: ${error.message}`);
+        console.error(`Error processing model ${model}:`, error);
+        let errorMessage = error.message;
+        
+        // axios 에러인 경우 더 자세한 정보 추출
+        if (error.response) {
+          // 서버가 응답을 반환한 경우
+          console.error('Server Error Data:', error.response.data);
+          errorMessage = `Server Error (${error.response.status}): ${JSON.stringify(error.response.data)}`;
+        } else if (error.request) {
+          // 요청은 보냈지만 응답을 받지 못한 경우
+          errorMessage = '서버로부터 응답을 받지 못했습니다.';
+        }
+
+        newResults[model] = {
+          urls: [],
+          distances: [],
+          error: errorMessage
+        };
+      }
+    }
+
+    // Ensemble 처리
+    if (useEnsemble) {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      formData.append("model_name", "ensemble");
+      formData.append("category1", category1);
+      formData.append("category2", category2);
+
+      try {
+        const response = await axios.post("http://127.0.0.1:8000/embed/", formData);
+        const result = response.data;
+        
+        if (!result) {
+          throw new Error('앙상블 결과를 받지 못했습니다.');
+        }
+
+        const imagePaths = result.similar_images || [];
+        const distances = result.distances || [];
+
+        if (!imagePaths.length || !distances.length) {
+          throw new Error('앙상블 검색 결과가 없습니다.');
+        }
+
+        const fullUrls = imagePaths.map(
+          (path) => `http://127.0.0.1:8000${path.replace(/\\/g, "/")}`
+        );
+
+        newResults['ensemble'] = {
+          urls: fullUrls,
+          distances: distances
+        };
+      } catch (error) {
+        console.error('Error processing ensemble:', error);
+        let errorMessage = error.message;
+        
+        // axios 에러인 경우 더 자세한 정보 추출
+        if (error.response) {
+          // 서버가 응답을 반환한 경우
+          console.error('Server Error Data:', error.response.data);
+          errorMessage = `Server Error (${error.response.status}): ${JSON.stringify(error.response.data)}`;
+        } else if (error.request) {
+          // 요청은 보냈지만 응답을 받지 못한 경우
+          errorMessage = '서버로부터 응답을 받지 못했습니다.';
+        }
+
+        newResults['ensemble'] = {
+          urls: [],
+          distances: [],
+          error: errorMessage
+        };
       }
     }
 
@@ -66,6 +147,7 @@ function App() {
     setCategory1("");
     setCategory2("");
     setSelectedModels([]);
+    setUseEnsemble(false);
     setResultsByModel({});
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -108,14 +190,17 @@ function App() {
           />
 
           <div style={{ marginBottom: '20px', maxHeight: '200px', overflowY: 'auto' }}>
-            {modelOptions.map((model) => (
+            {['ensemble', ...modelOptions].map((model) => (
               <div key={model}>
                 <label>
                   <input
                     type="checkbox"
                     value={model}
-                    checked={selectedModels.includes(model)}
-                    onChange={handleModelSelection}
+                    checked={model === 'ensemble' ? useEnsemble : selectedModels.includes(model)}
+                    onChange={model === 'ensemble' ? 
+                      (e) => setUseEnsemble(e.target.checked) : 
+                      handleModelSelection
+                    }
                   />
                   {model}
                 </label>
@@ -123,7 +208,12 @@ function App() {
             ))}
           </div>
 
-          <button onClick={handleEmbed} disabled={!selectedFile}>이미지 검색</button>
+          <button 
+            onClick={handleEmbed} 
+            disabled={!selectedFile || (selectedModels.length === 0 && !useEnsemble)}
+          >
+            이미지 검색
+          </button>
           <button onClick={handleReset} style={{ marginTop: '10px' }}>리셋</button>
         </div>
 
@@ -149,38 +239,92 @@ function App() {
         {Object.keys(resultsByModel).length === 0 ? (
           <h3>처리된 결과 이미지가 없습니다.</h3>
         ) : (
-          Object.entries(resultsByModel).map(([model, data]) => (
-            <div key={model} style={{ marginBottom: '20px' }}>
-              <h4 style={{ margin: '5px 0' }}>
-              🔍 Model: {model}</h4>
-              <div style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: '4px',
-                justifyContent: 'flex-start'
-              }}>
-                {data.urls.map((url, index) => (
-                  <div key={index} style={{ 
-                    width: 'calc(6.5% - 4px)',
-                    textAlign: 'center',
-                    boxSizing: 'border-box'}}>
-                    <img
-                      src={url}
-                      alt={`결과 ${index + 1}`}
-                      style={{
-                        width: '100%',
-                        height: 'auto',
-                        objectFit: 'cover',
-                        border: '1px solid #999'
-                      }}
-                    />
-                    <p style={{ fontSize: '11px', margin: '2px 0', fontWeight: '500' }}>
-                    Distance: {data.distances[index]?.toFixed(4)}</p>
+          <>
+            {/* Ensemble 결과 */}
+            {resultsByModel['ensemble'] && (
+              <div style={{ marginBottom: '20px' }}>
+                <h4 style={{ margin: '5px 0' }}>
+                  🔍 Model: ensemble
+                </h4>
+                {resultsByModel['ensemble'].error ? (
+                  <div style={{ color: 'red', marginBottom: '10px' }}>
+                    Error: {resultsByModel['ensemble'].error}
                   </div>
-                ))}
+                ) : (
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '4px',
+                    justifyContent: 'flex-start'
+                  }}>
+                    {resultsByModel['ensemble'].urls.map((url, index) => (
+                      <div key={index} style={{ 
+                        width: 'calc(6.5% - 4px)',
+                        textAlign: 'center',
+                        boxSizing: 'border-box'
+                      }}>
+                        <img
+                          src={url}
+                          alt={`결과 ${index + 1}`}
+                          style={{
+                            width: '100%',
+                            height: 'auto',
+                            objectFit: 'cover',
+                            border: '1px solid #999'
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
-          ))
+            )}
+
+            {/* 개별 모델 결과 표시 */}
+            {Object.entries(resultsByModel)
+              .filter(([modelName]) => modelName !== 'ensemble')
+              .map(([modelName, data]) => (
+                <div key={modelName} style={{ marginBottom: '20px' }}>
+                  <h4 style={{ margin: '5px 0' }}>
+                    🔍 Model: {modelName}
+                  </h4>
+                  {data.error ? (
+                    <div style={{ color: 'red', marginBottom: '10px' }}>
+                      Error: {data.error}
+                    </div>
+                  ) : (
+                    <div style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: '4px',
+                      justifyContent: 'flex-start'
+                    }}>
+                      {data.urls.map((url, index) => (
+                        <div key={index} style={{ 
+                          width: 'calc(6.5% - 4px)',
+                          textAlign: 'center',
+                          boxSizing: 'border-box'
+                        }}>
+                          <img
+                            src={url}
+                            alt={`결과 ${index + 1}`}
+                            style={{
+                              width: '100%',
+                              height: 'auto',
+                              objectFit: 'cover',
+                              border: '1px solid #999'
+                            }}
+                          />
+                          <p style={{ fontSize: '11px', margin: '2px 0', fontWeight: '500' }}>
+                            Distance: {data.distances[index]?.toFixed(4)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+          </>
         )}
       </div>
     </div>
