@@ -16,6 +16,7 @@ function App() {
     "magiclens", "unicom", "imagebind", "coca_mscoco", "coca_laion2b", "openai_clip", "laion_clip",
     "fashion_clip", "vit", "swin", "efnet", "siglip", "blip2", "dreamsim", "marqo_fashionclip"
   ];
+
   const handleFileChange = (event) => {
     const file = event.target.files[0];
     setSelectedFile(file);
@@ -79,7 +80,7 @@ function App() {
         const response = await axios.post("http://127.0.0.1:8000/search_bbox/", formData);
         const imagePaths = response.data.similar_images || [];
         const distances = response.data.distances || [];
-        const fullUrls = imagePaths.map(path => `http://127.0.0.1:8000/${path.replace(/\\/g, "/")}`);
+        const fullUrls = imagePaths.map(path => `http://127.0.0.1:8000${path.replace(/\\/g, "/")}`);
         newResults[model] = fullUrls.map((url, idx) => ({
           url,
           distance: distances[idx]?.toFixed(4)
