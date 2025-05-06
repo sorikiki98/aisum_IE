@@ -12,11 +12,9 @@ class EnsembleImageRetrieval(nn.Module):
         super().__init__()
         self.models = models
         self.model_weights = {
-            "magiclens": range(10, 0, -1),  # 10~1점
-            "dreamsim": range(10, 0, -1),
-            "swin": range(10, 0, -1),
-            "unicom": range(10, 0, -1),
-            "marqo_ecommerce_l": range(10, 0, -1)
+            "magiclens": [x * 0.5 * 0.5 for x in range(10, 0, -1)],
+            "dreamsim": [x * 0.5 for x in range(10, 0, -1)],
+            "marqo_ecommerce_l": [x * 0.5 * 0.75 for x in range(10, 0, -1)]
         }
         first_model = next(iter(models.values()))
         self.retrieved_image_folder = first_model.retrieved_image_folder
