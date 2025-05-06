@@ -59,7 +59,7 @@ async def embed_and_search_similar_images(
         if model_name == "ensemble":
             # 앙상블 검색만 실행
             models = {}
-            ensemble_model_names = ["magiclens", "dreamsim", "swin", "unicom", "marqo_ecommerce_l"]
+            ensemble_model_names = ["magiclens", "dreamsim", "marqo_ecommerce_l"]
             
             for name in ensemble_model_names:
                 db = PGVectorDB(name, config)
