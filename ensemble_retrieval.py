@@ -7,7 +7,7 @@ import shutil
 from PIL import Image
 
 
-class EnsembleImageRetrieval(nn.Module):
+class Ensemble(nn.Module):
     def __init__(self, models: Dict[str, ImageRetrieval]):
         super().__init__()
         self.models = models

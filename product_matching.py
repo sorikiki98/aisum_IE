@@ -17,6 +17,8 @@ class ImageRetrieval(nn.Module):
         self.model_name = model.name
 
     def forward(self, query_image, query_id, cat1_code=None, cat2_code=None):
+        if not isinstance(query_image, list):
+            query_image = [query_image]
         query_embeddings_ndarray = self._model(query_image)
         cat1_code = cat1_code if not len(cat1_code) == 0 else None
         cat2_code = cat2_code if not len(cat2_code) == 0 else None

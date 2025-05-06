@@ -91,11 +91,11 @@
       "num_dimension": 768,
       "batch_size": 4
     },
-    "dreamsim": {
+    "dreamsim_tmp": {
       "model_dir": "dream_sim",
       "model_name": "DreamSim",
       "num_dimension": 1792,
-      "batch_size": 64
+      "batch_size": 16
     },
     "marqo_fashionclip": {
       "model_dir": "marqo",
@@ -120,6 +120,10 @@
       "model_name": "Marqo",
       "num_dimension": 1024,
       "batch_size": 32
+    },
+    "yolo": {
+      "weights": "/mnt/c/Users/user/PycharmProjects/aisum_IE/yolo/semi_lr1e4_drop04.pt",
+      "num_objects": 3
     }
   }
 }

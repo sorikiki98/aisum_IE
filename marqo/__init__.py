@@ -1,4 +1,4 @@
-from model_utils import ImageEmbeddingModel
+from image_embedding_model import ImageEmbeddingModel
 import open_clip
 import torch
 from tqdm import tqdm

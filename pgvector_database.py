@@ -23,8 +23,8 @@ class PGVectorDB:
                 CREATE TABLE IF NOT EXISTS {table_name} (
                     id VARCHAR(255) PRIMARY KEY,
                     embedding VECTOR({num_dimensions}),
-                    category1 VARCHAR(10),
-                    category2 VARCHAR(10)
+                    category1 VARCHAR(500),
+                    category2 VARCHAR(500)
                 );
             """)
             conn.commit()

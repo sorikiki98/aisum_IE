@@ -7,104 +7,19 @@ from pathlib import Path
 import traceback
 import json
 import importlib
-from PIL import Image
-from ultralytics import YOLO
-import io
-
-
 
 with open("../config.json", "r", encoding="utf-8") as f:
     config = json.load(f)
 
 sys.path.append(config["root_path"])
 
-# 모델 로드
-def load_object_detection_model():
-    return YOLO('semi_lr1e4_drop04.pt')
-
-# 중복 bounding box 제거 로직
-def filter_approx_duplicate_bboxes(candidates, dif):
-    sorted_c = sorted(candidates, key=lambda x: x["conf"], reverse=True)
-    unique = []
-    for c in sorted_c:
-        xmin, ymin, xmax, ymax = c["bbox"]
-        is_dup = False
-        for u in unique:
-            uxmin, uymin, uxmax, uymax = u["bbox"]
-            if (abs(xmin - uxmin) <= dif and
-                abs(ymin - uymin) <= dif and
-                abs(xmax - uxmax) <= dif and
-                abs(ymax - uymax) <= dif):
-                is_dup = True
-                break
-        if not is_dup:
-            unique.append(c)
-    return unique
-
-# bounding box가 가장자리 깊은 곳에 있을 경우 삭제하는 로직
-def filter_edge_boxes(candidates, orig_w, orig_h):
-    def is_at_border(c):
-        xmin, ymin, xmax, ymax = c["bbox"]
-        if (ymax < 0.02 * orig_h) and (ymin < 0.02 * orig_h):
-            return True
-        if (ymin > 0.80 * orig_h) and (ymax > 0.98 * orig_h):
-            return True
-        if (xmax < 0.02 * orig_w) and (xmin < 0.02 * orig_w):
-            return True
-        if (xmin > 0.80 * orig_w) and (xmax > 0.98 * orig_w):
-            return True
-        return False
-    return [c for c in candidates if not is_at_border(c)]
-
-# confidence 낮은 값 삭제 로직
-def filter_low_confidence(candidates, min_conf=0.4):
-    return [c for c in candidates if c["conf"] >= min_conf]
-
-# top-k 박스 선택 로직
-def select_topk_by_area(candidates, k=3):
-    return sorted(candidates, key=lambda x: x["area"], reverse=True)[:k]
-
-# detection 수행
-def detect_objects(image: Image.Image, model):
-
-    results = model.predict(image, verbose=False)[0]
-    orig_arr = results.orig_img[:, :, ::-1]
-    original_image = Image.fromarray(orig_arr)
-    orig_h, orig_w = results.boxes.orig_shape
-
-    candidates = []
-    for cls_id, conf, bbox in zip(results.boxes.cls,
-                                  results.boxes.conf,
-                                  results.boxes.xyxy):
-        xmin, ymin, xmax, ymax = map(int, bbox)
-        area = (xmax - xmin) * (ymax - ymin)
-        candidates.append({
-            "class": results.names[int(cls_id)],
-            "conf":  float(conf),
-            "bbox":  (xmin, ymin, xmax, ymax),
-            "area":  area,
-            "image": original_image.crop((xmin, ymin, xmax, ymax))
-        })
-
-    candidates = filter_approx_duplicate_bboxes(candidates, dif=15)
-    candidates = filter_edge_boxes(candidates, orig_w, orig_h)
-    candidates = filter_low_confidence(candidates, min_conf=0.4)
-
-    # 위 조건 적용하고 3개 이상일 경우 -> box 사이즈대로 3개만 출력
-    if len(candidates) > 3:
-        candidates = select_topk_by_area(candidates, k=3)
-
-    return [original_image] + [
-        [c["class"], c["bbox"], c["image"]] for c in candidates
-    ]
-
-
 from dataset import QueryDataset
 from pgvector_database import PGVectorDB
 from product_matching import ImageRetrieval
+from ensemble_retrieval import Ensemble
+from yolo import ObjectDetectionModel
 
 app = FastAPI()
-detection_model = load_object_detection_model()
 
 app.add_middleware(
     CORSMiddleware,
@@ -124,56 +39,74 @@ def load_image_embedding_model_from_path(model_name: str, cfg: dict):
     return cls(model_name, cfg)
 
 
-@app.post("/embed/")
-async def embed_and_search_similar_images(
+def get_object_detection_result(pil_img):
+    detection_model = ObjectDetectionModel()
+    detection_output = detection_model(pil_img)[0]
+
+    return detection_output[0], detection_output[1:]
+
+
+@app.post("/search/")
+async def search_by_original_image(
         file: UploadFile = File(...),
         model_name: str = Form(...),
         category1: str = Form(None),
         category2: str = Form(None),
 ):
-    print("📥 /embed/ POST 요청 도착")
-    print(f"✅ 업로드된 파일 이름: {file.filename}")
-    print(f"[FILTER] category1: {category1}, category2: {category2}")
-    print(f"[DEBUG] 전달된 model_name: {model_name}")
-
     try:
         dataset = QueryDataset("test", config)
         dataset.clean_query_images()
         await dataset.save_query_images(file)
         query_image, query_id = dataset.prepare_query_images(0, 1)
-        database = PGVectorDB(model_name, config)
-        model = load_image_embedding_model_from_path(model_name, config)
 
-        retrieval_model = ImageRetrieval(model, database, config)
-        retrieval_result = retrieval_model(query_image, query_id, category1, category2)
+        if model_name == "ensemble":
+            # 앙상블 검색만 실행
+            models = {}
+            ensemble_model_names = ["dreamsim", "magiclens", "marqo_ecommerce_l"]
 
-        top_k_paths = retrieval_result['result_paths'][0] if retrieval_result['result_paths'] else []
-        top_k_distances = retrieval_result['result_distances'][0]
+            for name in ensemble_model_names:
+                db = PGVectorDB(name, config)
+                mdl = load_image_embedding_model_from_path(name, config)
+                models[name] = ImageRetrieval(mdl, db, config)
 
-        return JSONResponse(content={
-            "similar_images": top_k_paths,
-            "distances": top_k_distances
-        })
+            ensemble_model = Ensemble(models)
+            result = ensemble_model(query_image, query_id, category1, category2)
+
+            return JSONResponse(content={
+                "similar_images": result['result_paths'][0] if result['result_paths'] else [],
+                "distances": result['result_distances'][0]
+            })
+        else:
+            # 단일 모델 검색
+            database = PGVectorDB(model_name, config)
+            model = load_image_embedding_model_from_path(model_name, config)
+            retrieval_model = ImageRetrieval(model, database, config)
+            result = retrieval_model(query_image, query_id, category1, category2)
+
+            return JSONResponse(content={
+                "similar_images": result['result_paths'][0] if result['result_paths'] else [],
+                "distances": result['result_distances'][0]
+            })
 
     except Exception as e:
         print(f"❌ 처리 실패: {e}")
         print(traceback.format_exc())
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
+
 @app.post("/detect/")
 async def detect_fashion_objects(file: UploadFile = File(...)):
     try:
-        image_bytes = await file.read()
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        dataset = QueryDataset("test", config)
+        dataset.clean_query_images()
+        await dataset.save_query_images(file)
+        query_image, query_id = dataset.prepare_query_images(0, 1)
 
-        detections = detect_objects(image, detection_model)
-
-        original_image = detections[0]
-        detection_list = detections[1:]
+        original_image, detected_objects = get_object_detection_result(query_image)
 
         result = []
-        for det in detection_list:
-            cls, bbox, _ = det
+        for obj in detected_objects:
+            cls, bbox, _ = obj
             result.append({
                 "class": cls,
                 "bbox": bbox  # (xmin, ymin, xmax, ymax)
@@ -186,7 +119,8 @@ async def detect_fashion_objects(file: UploadFile = File(...)):
     except Exception as e:
         print(f"❌ Detection 실패: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
-    
+
+
 @app.post("/search_bbox/")
 async def search_by_bbox(file: UploadFile = File(...),
                          model_name: str = Form(...),
@@ -197,29 +131,22 @@ async def search_by_bbox(file: UploadFile = File(...),
                          category1: str = Form(None),
                          category2: str = Form(None)):
     try:
-        # (1) 파일 읽기
-        image_bytes = await file.read()
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        dataset = QueryDataset("test", config)
+        dataset.clean_query_images()
+        await dataset.save_query_images(file)
+        query_image, query_id = dataset.prepare_query_images(0, 1)
 
-        # (2) bbox 영역으로 crop
-        cropped_image = image.crop((bbox_xmin, bbox_ymin, bbox_xmax, bbox_ymax))
+        cropped_image = query_image.crop((bbox_xmin, bbox_ymin, bbox_xmax, bbox_ymax))
 
-        # (3) 모델 및 DB 로드
         database = PGVectorDB(model_name, config)
-        model = load_image_embedding_model_from_path(model_name, config)
-        retrieval_model = ImageRetrieval(model, database, config)
+        embedding_model = load_image_embedding_model_from_path(model_name, config)
+        retrieval_model = ImageRetrieval(embedding_model, database, config)
 
-        # (4) crop 이미지를 임베딩하고 검색
-        query_id = ["bbox_query"]   # (id는 임시로 아무거나)
-        query_image = [cropped_image]  # (Image 리스트로)
+        retrieval_result = retrieval_model(cropped_image, query_id, category1, category2)
 
-        retrieval_result = retrieval_model(query_image, query_id, category1, category2)
-
-        # (5) 검색 결과 정리
         top_k_paths = retrieval_result['result_paths'][0] if retrieval_result['result_paths'] else []
         top_k_distances = retrieval_result['result_distances'][0]
 
-        # (6) 결과 반환
         return JSONResponse(content={
             "similar_images": top_k_paths,
             "distances": top_k_distances
@@ -229,7 +156,7 @@ async def search_by_bbox(file: UploadFile = File(...),
         print(f"❌ BoundingBox 검색 실패: {e}")
         print(traceback.format_exc())
         return JSONResponse(content={"error": str(e)}, status_code=500)
-        
+
 
 project_root = config["root_path"]
 frontend_build_path = Path(project_root) / "server" / "aisum-ui" / "build"

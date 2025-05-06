@@ -1,5 +1,5 @@
 from .model import load, available_models
-from model_utils import ImageEmbeddingModel
+from image_embedding_model import ImageEmbeddingModel
 from tqdm import tqdm
 import torch
 

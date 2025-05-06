@@ -1,4 +1,4 @@
-from model_utils import ImageEmbeddingModel
+from image_embedding_model import ImageEmbeddingModel
 from tqdm import tqdm
 import torch
 from torchvision import models
