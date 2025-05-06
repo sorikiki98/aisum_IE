@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from magiclens.magiclens import MagicLensBackBone
 from scenic.projects.baselines.clip import tokenizer as clip_tokenizer
-from model_utils import ImageEmbeddingModel
+from image_embedding_model import ImageEmbeddingModel
 
 
 class MagicLens(ImageEmbeddingModel):

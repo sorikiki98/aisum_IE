@@ -5,7 +5,7 @@ from tqdm import tqdm
 from imagebind import data
 from imagebind.models import imagebind_model
 from imagebind.models.imagebind_model import ModalityType
-from model_utils import ImageEmbeddingModel
+from image_embedding_model import ImageEmbeddingModel
 
 
 class ImageBind(ImageEmbeddingModel):
