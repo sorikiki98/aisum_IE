@@ -10,30 +10,29 @@ class IndexDataset:
         self.dataset_name = dataset_name
 
         index_image_folder = Path(config["data"]["index_image_folder_path"])
-        index_image_files = sorted(index_image_folder.glob("**/*.jpg"))
+        image_extensions = config["data"]["image_extensions"]
+        index_image_files = sorted(
+            file for file in index_image_folder.rglob("*")
+            if file.suffix.lower() in image_extensions
+        )
         index_image_ids = [file.stem for file in index_image_files]
-        index_image_cat1s = [str(file).split(os.sep)[-3] for file in index_image_files]
-        index_image_cat2s = [str(file).split(os.sep)[-2] for file in index_image_files]
-        self.index_image_folder = index_image_folder
         self.index_image_files = index_image_files
         self.index_image_ids = index_image_ids
-        self.index_image_cat1s = index_image_cat1s
-        self.index_image_cat2s = index_image_cat2s
 
     def prepare_index_images(self, batch_idx, batch_size):
         batch_files = self.index_image_files[batch_idx * batch_size: (batch_idx + 1) * batch_size]
         batch_ids = self.index_image_ids[batch_idx * batch_size: (batch_idx + 1) * batch_size]
         batch_ids = np.array(batch_ids)
-        batch_cat1s = self.index_image_cat1s[batch_idx * batch_size: (batch_idx + 1) * batch_size]
-        batch_cat2s = self.index_image_cat2s[batch_idx * batch_size: (batch_idx + 1) * batch_size]
         batch_images = []
 
-        with tqdm(total=len(batch_files), desc="Prepare PIL Images") as progress:
-            for file_path, img_id, cat1, cat2 in zip(batch_files, batch_ids, batch_cat1s, batch_cat2s):
-                img = Image.open(file_path).convert("RGB")
-                progress.update(1)
-                batch_images.append(img)
-        return batch_images, batch_ids, batch_cat1s, batch_cat2s
+        for file_path, img_id in zip(batch_files, batch_ids):
+            img = Image.open(file_path).convert("RGB")
+            batch_images.append(img)
+        return batch_images, batch_ids
+
+    def truncate_index_images(self, row_count=0):
+        self.index_image_files = self.index_image_files[row_count:]
+        self.index_image_ids = self.index_image_ids[row_count:]
 
 
 class QueryDataset:
@@ -72,9 +71,7 @@ class QueryDataset:
         batch_ids = np.array(batch_ids)
         batch_images = []
 
-        with tqdm(total=len(batch_files), desc="Prepare PIL Images") as progress:
-            for file_path, img_id in zip(batch_files, batch_ids):
-                img = Image.open(file_path).convert("RGB")
-                progress.update(1)
-                batch_images.append(img)
+        for file_path, img_id in zip(batch_files, batch_ids):
+            img = Image.open(file_path).convert("RGB")
+            batch_images.append(img)
         return batch_images, batch_ids

@@ -26,11 +26,9 @@ class Swin(ImageEmbeddingModel):
 
     def forward(self, pil_images):
         processed_images = []
-        with tqdm(total=len(pil_images), desc="Index examples") as progress:
-            for img in pil_images:
-                processed_img = self._preprocess(img).to(self.device)
-                processed_images.append(processed_img)
-                progress.update(1)
+        for img in pil_images:
+            processed_img = self._preprocess(img).to(self.device)
+            processed_images.append(processed_img)
         iimages = torch.stack(processed_images)
         batch_embeddings = self.model(iimages)
         batch_embeddings_ndarray = batch_embeddings.cpu().detach().numpy()

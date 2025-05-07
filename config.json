@@ -10,7 +10,13 @@
   "data": {
     "index_image_folder_path": "/mnt/c/Users/user/PycharmProjects/aisum_IE/data/eseltree/images",
     "query_image_folder_path": "/mnt/c/Users/user/PycharmProjects/aisum_IE/data/test/images",
-    "retrieved_image_folder_path": "/mnt/c/Users/user/PycharmProjects/aisum_IE/outputs"
+    "retrieved_image_folder_path": "/mnt/c/Users/user/PycharmProjects/aisum_IE/outputs",
+    "image_extensions": [
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".gif"
+    ]
   },
   "model": {
     "magiclens": {
@@ -115,11 +121,11 @@
       "num_dimension": 768,
       "batch_size": 128
     },
-    "marqo_ecommerce_l": {
+    "marqo_ecommerce_l_tmp": {
       "model_dir": "marqo",
       "model_name": "Marqo",
       "num_dimension": 1024,
-      "batch_size": 32
+      "batch_size": 8
     },
     "yolo": {
       "weights": "/mnt/c/Users/user/PycharmProjects/aisum_IE/yolo/semi_lr1e4_drop04.pt",

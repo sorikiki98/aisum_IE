@@ -34,11 +34,9 @@ class ImageBind(ImageEmbeddingModel):
 
     def forward(self, pil_images):
         processed_images = []
-        with tqdm(total=len(pil_images), desc="Index examples") as progress:
-            for img in pil_images:
-                processed_img = self._preprocess(img)
-                processed_images.append(processed_img)
-                progress.update(1)
+        for img in pil_images:
+            processed_img = self._preprocess(img)
+            processed_images.append(processed_img)
         iimages = torch.stack(processed_images).to(self.device)
         inputs = {ModalityType.VISION: iimages}
         with torch.no_grad():

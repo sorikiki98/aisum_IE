@@ -18,16 +18,19 @@ class ObjectDetectionModel(nn.Module):
         if not isinstance(img_ids, np.ndarray):
             img_ids = np.array(img_ids)
         detection_results = []
-        with tqdm(total=len(pil_images), desc="Object Detection Processing...") as progress:
-            for img in pil_images:
-                pred = self.model.predict(img, verbose=False)[0]
-                result = self._get_candidates(pred)
-                detection_results.append(result)
-                progress.update(1)
+        for img in pil_images:
+            pred = self.model.predict(img, verbose=False)[0]
+            result = self._get_candidates(pred)
+            detection_results.append(result)
 
         flattened_classes, flattened_coordinates, flattened_images, flattened_ids = \
             self._flatten_batch_detection_results(detection_results, img_ids)
-        return flattened_classes, flattened_coordinates, flattened_images, flattened_ids
+        return {
+            "detection_classes": flattened_classes,
+            "detection_coordinates": flattened_coordinates,
+            "detection_images": flattened_images,
+            "image_segment_ids": flattened_ids
+        }
 
     @property
     def model(self):

@@ -3,6 +3,7 @@ import importlib
 import sys
 from PIL.Image import Image
 from typing import List
+from tqdm import tqdm
 from dataset import IndexDataset
 from pgvector_database import PGVectorDB
 from image_embedding_model import ImageEmbeddingModel
@@ -32,8 +33,12 @@ if __name__ == "__main__":
     if image_embedding_model_name not in config["model"]:
         raise ValueError("Invalid embedding model name.")
 
-    dataset = IndexDataset("eseltree", config)
     database = PGVectorDB(image_embedding_model_name, config)
+    row_count = database.get_pgvector_info()["num_of_total_image_embeddings"]
+
+    dataset = IndexDataset("eseltree", config)
+    dataset.truncate_index_images(row_count)
+
     detection_model = ObjectDetectionModel(config)
 
     embedding_model = load_image_embedding_model_from_path(image_embedding_model_name, config)
@@ -43,10 +48,14 @@ if __name__ == "__main__":
     total_batches = len_index_images // batch_size + (1 if len_index_images % batch_size > 0 else 0)
     all_embeddings = []
 
-    for batch_idx in range(total_batches):
-        batch_images, batch_ids, batch_cat1s, batch_cat2s = dataset.prepare_index_images(batch_idx, batch_size)
-        batch_detection_classes, batch_detection_coordinates, batch_detection_images, batch_detection_ids = \
-            detection_model(batch_images, batch_ids)
+    for batch_idx in tqdm(range(total_batches), desc=f"Indexing {len_index_images} Images"):
+        batch_images, batch_ids = dataset.prepare_index_images(batch_idx, batch_size)
+        batch_detection_result = detection_model(batch_images, batch_ids)
+
+        batch_detection_classes = batch_detection_result["detection_classes"]
+        batch_detection_images = batch_detection_result["detection_images"]
+        batch_image_segment_ids = batch_detection_result["image_segment_ids"]
+
         batch_embeddings_ndarray = embedding_model(batch_detection_images)
-        database.insert_image_embeddings_into_postgres(batch_detection_ids, batch_embeddings_ndarray,
-                                                       batch_detection_classes, batch_detection_classes)
+        database.insert_image_embeddings_into_postgres(batch_image_segment_ids, batch_embeddings_ndarray,
+                                                       batch_detection_classes)
