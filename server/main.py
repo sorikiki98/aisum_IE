@@ -50,8 +50,7 @@ def get_object_detection_result(pil_img):
 async def search_by_original_image(
         file: UploadFile = File(...),
         model_name: str = Form(...),
-        category1: str = Form(None),
-        category2: str = Form(None),
+        category: str = Form(None)
 ):
     try:
         dataset = QueryDataset("test", config)
@@ -70,7 +69,7 @@ async def search_by_original_image(
                 models[name] = ImageRetrieval(mdl, db, config)
 
             ensemble_model = Ensemble(models)
-            result = ensemble_model(query_image, query_id, category1, category2)
+            result = ensemble_model(query_image, query_id, category)
 
             return JSONResponse(content={
                 "similar_images": result['result_paths'][0] if result['result_paths'] else [],
@@ -81,7 +80,7 @@ async def search_by_original_image(
             database = PGVectorDB(model_name, config)
             model = load_image_embedding_model_from_path(model_name, config)
             retrieval_model = ImageRetrieval(model, database, config)
-            result = retrieval_model(query_image, query_id, category1, category2)
+            result = retrieval_model(query_image, query_id, category)
 
             return JSONResponse(content={
                 "similar_images": result['result_paths'][0] if result['result_paths'] else [],
@@ -128,8 +127,7 @@ async def search_by_bbox(file: UploadFile = File(...),
                          bbox_ymin: int = Form(...),
                          bbox_xmax: int = Form(...),
                          bbox_ymax: int = Form(...),
-                         category1: str = Form(None),
-                         category2: str = Form(None)):
+                         category: str = Form(None)):
     try:
         dataset = QueryDataset("test", config)
         dataset.clean_query_images()
@@ -142,7 +140,7 @@ async def search_by_bbox(file: UploadFile = File(...),
         embedding_model = load_image_embedding_model_from_path(model_name, config)
         retrieval_model = ImageRetrieval(embedding_model, database, config)
 
-        retrieval_result = retrieval_model(cropped_image, query_id, category1, category2)
+        retrieval_result = retrieval_model(cropped_image, query_id, category)
 
         top_k_paths = retrieval_result['result_paths'][0] if retrieval_result['result_paths'] else []
         top_k_distances = retrieval_result['result_distances'][0]

@@ -16,7 +16,7 @@ class Marqo(ImageEmbeddingModel):
         elif model_name == "marqo_ecommerce_b":
             model, _, preprocess = open_clip.create_model_and_transforms(
                 'hf-hub:Marqo/marqo-ecommerce-embeddings-B', device=self.device)
-        elif model_name == "marqo_ecommerce_l":
+        elif model_name == "marqo_ecommerce_l_tmp":
             model, _, preprocess = open_clip.create_model_and_transforms(
                 'hf-hub:Marqo/marqo-ecommerce-embeddings-L', device=self.device)
         else:
@@ -33,11 +33,9 @@ class Marqo(ImageEmbeddingModel):
 
     def forward(self, pil_images):
         processed_images = []
-        with tqdm(total=len(pil_images), desc="Index examples") as progress:
-            for img in pil_images:
-                processed_img = self._preprocess(img)
-                processed_images.append(processed_img)
-                progress.update(1)
+        for img in pil_images:
+            processed_img = self._preprocess(img)
+            processed_images.append(processed_img)
 
         iimages = torch.stack(processed_images).to(self.device)
         image_features = self.model.encode_image(iimages).detach().cpu()

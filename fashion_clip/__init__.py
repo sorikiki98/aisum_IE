@@ -23,11 +23,9 @@ class FashionCLIP(ImageEmbeddingModel):
 
     def forward(self, pil_images):
         processed_images = []
-        with tqdm(total=len(pil_images), desc="Index examples") as progress:
-            for img in pil_images:
-                processed_img = self._preprocess(images=img, return_tensors="pt")["pixel_values"].squeeze(0)
-                processed_images.append(processed_img)
-                progress.update(1)
+        for img in pil_images:
+            processed_img = self._preprocess(images=img, return_tensors="pt")["pixel_values"].squeeze(0)
+            processed_images.append(processed_img)
         iimages = torch.stack(processed_images).to(self.device)
         image_features = self.model.get_image_features(iimages).detach().cpu()
         norm_factors = image_features.norm(dim=-1, keepdim=True)

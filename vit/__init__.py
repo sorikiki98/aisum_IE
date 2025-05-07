@@ -21,12 +21,10 @@ class ViT(ImageEmbeddingModel):
 
     def forward(self, pil_images):
         processed_images = []
-        with tqdm(total=len(pil_images), desc="Index examples") as progress:
-            for img in pil_images:
-                processed_img = self._preprocess(img, return_tensors="pt", input_data_format="channels_last")[
-                    "pixel_values"].to(self.device)
-                processed_images.append(processed_img)
-                progress.update(1)
+        for img in pil_images:
+            processed_img = self._preprocess(img, return_tensors="pt", input_data_format="channels_last")[
+                "pixel_values"].to(self.device)
+            processed_images.append(processed_img)
         iimages = torch.cat(processed_images, dim=0)
         outputs = self.model(iimages)
         batch_embeddings = outputs.last_hidden_state[:, 0, :]

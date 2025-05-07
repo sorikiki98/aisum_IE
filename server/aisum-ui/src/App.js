@@ -6,11 +6,10 @@ function App() {
   const [previewURL, setPreviewURL] = useState(null);
   const [selectedModels, setSelectedModels] = useState([]);
   const [useEnsemble, setUseEnsemble] = useState(false);
-  const [category1, setCategory1] = useState("");
-  const [category2, setCategory2] = useState("");
+  const [category, setCategory] = useState("");
   const [resultsByModel, setResultsByModel] = useState({});
   const fileInputRef = useRef(null);
-  const modelOptions = ["dreamsim", "magiclens", "marqo_ecommerce_l"];
+  const modelOptions = ["dreamsim_tmp", "magiclens", "marqo_ecommerce_l"];
 
   const handleFileChange = (event) => {
     const file = event.target.files[0];
@@ -34,8 +33,7 @@ function App() {
       const formData = new FormData();
       formData.append("file", selectedFile);
       formData.append("model_name", model);
-      formData.append("category1", category1);
-      formData.append("category2", category2);
+      formData.append("category", category);
 
       try {
         const response = await axios.post("http://127.0.0.1:8000/search/", formData);
@@ -87,8 +85,7 @@ function App() {
       const formData = new FormData();
       formData.append("file", selectedFile);
       formData.append("model_name", "ensemble");
-      formData.append("category1", category1);
-      formData.append("category2", category2);
+      formData.append("category", category);
 
       try {
         const response = await axios.post("http://127.0.0.1:8000/search/", formData);
@@ -141,8 +138,7 @@ function App() {
   const handleReset = () => {
     setSelectedFile(null);
     setPreviewURL(null);
-    setCategory1("");
-    setCategory2("");
+    setCategory("");
     setSelectedModels([]);
     setUseEnsemble(false);
     setResultsByModel({});
@@ -169,21 +165,6 @@ function App() {
             onChange={handleFileChange}
             ref={fileInputRef}
             style={{ marginBottom: '20px' }}
-          />
-
-          <input
-            type="text"
-            placeholder="Category 1"
-            value={category1}
-            onChange={(e) => setCategory1(e.target.value)}
-            style={{ marginBottom: '10px', width: '100%' }}
-          />
-          <input
-            type="text"
-            placeholder="Category 2"
-            value={category2}
-            onChange={(e) => setCategory2(e.target.value)}
-            style={{ marginBottom: '20px', width: '100%' }}
           />
 
           <div style={{ marginBottom: '20px', maxHeight: '200px', overflowY: 'auto' }}>

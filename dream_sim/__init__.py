@@ -29,12 +29,10 @@ class DreamSim(ImageEmbeddingModel):
 
     def forward(self, pil_images):
         processed_images = []
-        with tqdm(total=len(pil_images), desc="Indexing examples") as progress:
-            for img in pil_images:
-                tensor = self._preprocess(img)
-                tensor = tensor.squeeze(0)
-                processed_images.append(tensor)
-                progress.update(1)
+        for img in pil_images:
+            tensor = self._preprocess(img)
+            tensor = tensor.squeeze(0)
+            processed_images.append(tensor)
 
         iimages = torch.stack(processed_images).to(self.device)
 

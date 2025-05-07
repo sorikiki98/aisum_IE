@@ -43,13 +43,11 @@ class MagicLens(ImageEmbeddingModel):
 
     def forward(self, pil_images):
         processed_images = []
-        with tqdm(total=len(pil_images), desc="Index examples") as progress:
-            for img in pil_images:
-                ima = jnp.array(img)[jnp.newaxis, ...]
-                ima = ima / (ima.max() + 1e-12)
-                ima = jax.image.resize(ima, (1, 224, 224, 3), method='bilinear')
-                processed_images.append(np.array(ima))
-                progress.update(1)
+        for img in pil_images:
+            ima = jnp.array(img)[jnp.newaxis, ...]
+            ima = ima / (ima.max() + 1e-12)
+            ima = jax.image.resize(ima, (1, 224, 224, 3), method='bilinear')
+            processed_images.append(np.array(ima))
         iimages = jnp.concatenate(processed_images, axis=0)
         itokens = jnp.concatenate([self._tokens for _ in range(len(processed_images))], axis=0)
         iembeds = self.model.apply(self._params, {"ids": itokens, "image": iimages})[

@@ -25,15 +25,13 @@ class BLIP2(ImageEmbeddingModel):
     def forward(self, pil_images):
         prompt = "Question: Describe the product. Answer:"
         embedded_images = []
-        with tqdm(total=len(pil_images), desc="Index examples") as progress:
-            for img in pil_images:
-                inputs = self._preprocess(images=img, text=prompt, return_tensors="pt").to(self.device, torch.float16)
-                inputs["decoder_input_ids"] = inputs["input_ids"]
-                outputs = self.model(**inputs)
-                embedded_img = outputs['qformer_outputs']['pooler_output']
-                embedded_img = embedded_img.squeeze(0)
-                embedded_images.append(embedded_img)
-                progress.update(1)
+        for img in pil_images:
+            inputs = self._preprocess(images=img, text=prompt, return_tensors="pt").to(self.device, torch.float16)
+            inputs["decoder_input_ids"] = inputs["input_ids"]
+            outputs = self.model(**inputs)
+            embedded_img = outputs['qformer_outputs']['pooler_output']
+            embedded_img = embedded_img.squeeze(0)
+            embedded_images.append(embedded_img)
 
         image_features = torch.stack(embedded_images).to(self.device)
         batch_embeddings_ndarray = image_features.detach().cpu().numpy()
