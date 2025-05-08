@@ -109,11 +109,11 @@ class YOLO(ObjectDetectionModel):
     def _filter_edge_boxes(candidates, orig_w, orig_h):
         def is_at_border(c):
             xmin, ymin, xmax, ymax = c["bbox"]
-            if (ymax > 0.80 * orig_h) and (ymin > 0.98 * orig_h):
+            if (ymin < 0.02 * orig_h) and (ymax < 0.20 * orig_h):
                 return True
             if (ymin > 0.80 * orig_h) and (ymax > 0.98 * orig_h):
                 return True
-            if (xmax > 0.80 * orig_w) and (xmin > 0.98 * orig_w):
+            if (xmin < 0.02 * orig_w) and (xmax < 0.20 * orig_w):
                 return True
             if (xmin > 0.80 * orig_w) and (xmax > 0.98 * orig_w):
                 return True
