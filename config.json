@@ -8,7 +8,7 @@
     "port": "5432"
   },
   "data": {
-    "index_image_folder_path": "/mnt/c/Users/user/PycharmProjects/aisum_IE/data/eseltree/images",
+    "index_image_folder_path": "/mnt/d/item_image",
     "query_image_folder_path": "/mnt/c/Users/user/PycharmProjects/aisum_IE/data/test/images",
     "retrieved_image_folder_path": "/mnt/c/Users/user/PycharmProjects/aisum_IE/outputs",
     "image_extensions": [
@@ -130,7 +130,7 @@
     "yolo": {
       "model_dir": "yolo",
       "model_name": "YOLO",
-      "weights": "C:/Users/jeeso/aisum_IE/yolo/semi_lr1e4_drop04.pt",
+      "weights": "/mnt/c/Users/user/PycharmProjects/aisum_IE/yolo/semi_lr1e4_drop04.pt",
       "num_objects": 3
     }
   },
