@@ -15,7 +15,7 @@ class IndexDataset:
             file for file in index_image_folder.rglob("*")
             if file.suffix.lower() in image_extensions
         )
-        index_image_ids = [file.stem for file in index_image_files]
+        index_image_ids = [file.parent.name + "_" + file.stem for file in index_image_files]
         self.index_image_files = index_image_files
         self.index_image_ids = index_image_ids
 
