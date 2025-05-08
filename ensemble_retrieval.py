@@ -11,21 +11,26 @@ class Ensemble(nn.Module):
     def __init__(self, models: Dict[str, ImageRetrieval]):
         super().__init__()
         self.models = models
-        self.model_weights = {
-            "magiclens": [x * 0.5 * 0.5 for x in range(10, 0, -1)],
-            "dreamsim": [x * 0.5 for x in range(10, 0, -1)],
-            "marqo_ecommerce_l": [x * 0.5 * 0.75 for x in range(10, 0, -1)]
-        }
+        model_weights = dict()
+        for i, model_name in enumerate(models.keys()):
+            if i == 0:
+                model_weights[model_name] = [x * 0.5 for x in range(10, 0, -1)]
+            elif i == 1:
+                model_weights[model_name] = [x * 0.5 * 0.75 for x in range(10, 0, -1)]
+            else:
+                model_weights[model_name] = [x * 0.5 * 0.5 for x in range(10, 0, -1)]
+        self.model_weights = model_weights
+
         first_model = next(iter(models.values()))
         self.retrieved_image_folder = first_model.retrieved_image_folder
         self.index_image_folder = first_model.index_image_folder
         self.model_name = "ensemble"
 
-    def forward(self, query_image, query_id, cat1_code=None, cat2_code=None):
+    def forward(self, query_image, query_id, category=None):
         # 각 모델별 검색 결과 수집
         model_results = {}
         for model_name, model in self.models.items():
-            result = model(query_image, query_id, cat1_code, cat2_code)
+            result = model(query_image, query_id, category)
             model_results[model_name] = result
 
         # 이미지별 점수 집계

@@ -97,7 +97,7 @@
       "num_dimension": 768,
       "batch_size": 4
     },
-    "dreamsim_tmp": {
+    "dreamsim": {
       "model_dir": "dream_sim",
       "model_name": "DreamSim",
       "num_dimension": 1792,
@@ -121,15 +121,22 @@
       "num_dimension": 768,
       "batch_size": 128
     },
-    "marqo_ecommerce_l_tmp": {
+    "marqo_ecommerce_l": {
       "model_dir": "marqo",
       "model_name": "Marqo",
       "num_dimension": 1024,
       "batch_size": 8
     },
     "yolo": {
+      "model_dir": "yolo",
+      "model_name": "YOLO",
       "weights": "/mnt/c/Users/user/PycharmProjects/aisum_IE/yolo/semi_lr1e4_drop04.pt",
       "num_objects": 3
     }
+  },
+  "ensemble": {
+    "first": "dreamsim",
+    "second": "marqo_ecommerce_l",
+    "third": "magiclens"
   }
 }

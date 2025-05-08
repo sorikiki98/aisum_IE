@@ -1,16 +1,15 @@
 from PIL import Image
-from tqdm import tqdm
-from ultralytics import YOLO
+from ultralytics import YOLO as backbone
 import torch.nn as nn
 import numpy as np
+from object_detection_model import ObjectDetectionModel
 
 
-class ObjectDetectionModel(nn.Module):
-    def __init__(self, config):
-        super().__init__()
-        model_cfg = config["model"]["yolo"]
-        self._model = YOLO(model_cfg["weights"])
-        self.num_objects = model_cfg["num_objects"]
+class YOLO(ObjectDetectionModel):
+    def __init__(self, model_name, config):
+        super().__init__(model_name, config)
+        self._model = backbone(self.model_cfg["weights"])
+        self._num_objects = self.model_cfg["num_objects"]
 
     def forward(self, pil_images, img_ids):
         if not isinstance(pil_images, list):
@@ -60,8 +59,8 @@ class ObjectDetectionModel(nn.Module):
         candidates = self._filter_low_confidence(candidates, min_conf=0.4)
 
         # 위 조건 적용하고 num_objects개 이상일 경우 -> box 사이즈대로 num_objects개만 출력
-        if len(candidates) > self.num_objects:
-            candidates = self._select_topk_by_area(candidates, k=self.num_objects)
+        if len(candidates) > self._num_objects:
+            candidates = self._select_topk_by_area(candidates, k=self._num_objects)
 
         return [["", (0, 0, orig_w, orig_h), original_image]] + [
             [c["class"], c["bbox"], c["image"]] for c in candidates
@@ -86,8 +85,7 @@ class ObjectDetectionModel(nn.Module):
         return batch_flattened_classes, batch_flattened_coordinates, batch_flattened_images, batch_flattened_ids
 
     # 중복 bounding box 제거 로직
-    @staticmethod
-    def _filter_approx_duplicate_bboxes(candidates, dif):
+    def _filter_approx_duplicate_bboxes(self, candidates, dif):
         sorted_c = sorted(candidates, key=lambda x: x["conf"], reverse=True)
         unique = []
         for c in sorted_c:

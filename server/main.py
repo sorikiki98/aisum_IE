@@ -7,6 +7,7 @@ from pathlib import Path
 import traceback
 import json
 import importlib
+from PIL.Image import Image
 
 with open("../config.json", "r", encoding="utf-8") as f:
     config = json.load(f)
@@ -17,7 +18,7 @@ from dataset import QueryDataset
 from pgvector_database import PGVectorDB
 from product_matching import ImageRetrieval
 from ensemble_retrieval import Ensemble
-from yolo import ObjectDetectionModel
+from repository import ModelRepository
 
 app = FastAPI()
 
@@ -29,28 +30,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-def load_image_embedding_model_from_path(model_name: str, cfg: dict):
-    model_cfg = cfg["model"][model_name]
-    module = importlib.import_module(model_cfg["model_dir"])
-    class_name = model_cfg["model_name"]
-    cls = getattr(module, class_name)
-
-    return cls(model_name, cfg)
-
-
-def get_object_detection_result(pil_img):
-    detection_model = ObjectDetectionModel()
-    detection_output = detection_model(pil_img)[0]
-
-    return detection_output[0], detection_output[1:]
+repository = ModelRepository(config)
 
 
 @app.post("/search/")
 async def search_by_original_image(
         file: UploadFile = File(...),
-        model_name: str = Form(...),
-        category: str = Form(None)
+        embedding_model_name: str = Form(...)
 ):
     try:
         dataset = QueryDataset("test", config)
@@ -58,18 +44,18 @@ async def search_by_original_image(
         await dataset.save_query_images(file)
         query_image, query_id = dataset.prepare_query_images(0, 1)
 
-        if model_name == "ensemble":
-            # 앙상블 검색만 실행
-            models = {}
-            ensemble_model_names = ["dreamsim", "magiclens", "marqo_ecommerce_l"]
+        if embedding_model_name == "ensemble":
+            # 앙상블 검색
+            ensemble_model_names = config["ensemble"].values()
+            retrieval_models = dict()
 
             for name in ensemble_model_names:
                 db = PGVectorDB(name, config)
-                mdl = load_image_embedding_model_from_path(name, config)
-                models[name] = ImageRetrieval(mdl, db, config)
+                mdl = repository.get_model_by_name(name)
+                retrieval_models[name] = ImageRetrieval(mdl, db, config)
 
-            ensemble_model = Ensemble(models)
-            result = ensemble_model(query_image, query_id, category)
+            ensemble_model = Ensemble(retrieval_models)
+            result = ensemble_model(query_image, query_id, None)
 
             return JSONResponse(content={
                 "similar_images": result['result_paths'][0] if result['result_paths'] else [],
@@ -77,10 +63,10 @@ async def search_by_original_image(
             })
         else:
             # 단일 모델 검색
-            database = PGVectorDB(model_name, config)
-            model = load_image_embedding_model_from_path(model_name, config)
-            retrieval_model = ImageRetrieval(model, database, config)
-            result = retrieval_model(query_image, query_id, category)
+            database = PGVectorDB(embedding_model_name, config)
+            embedding_model = repository.get_model_by_name(embedding_model_name)
+            retrieval_model = ImageRetrieval(embedding_model, database, config)
+            result = retrieval_model(query_image, query_id, None)
 
             return JSONResponse(content={
                 "similar_images": result['result_paths'][0] if result['result_paths'] else [],
@@ -101,18 +87,20 @@ async def detect_fashion_objects(file: UploadFile = File(...)):
         await dataset.save_query_images(file)
         query_image, query_id = dataset.prepare_query_images(0, 1)
 
-        original_image, detected_objects = get_object_detection_result(query_image)
+        detection_model = repository.get_model_by_name("yolo")
+        detection_result = detection_model(query_image, query_id)
+        detection_classes = detection_result["detection_classes"]
+        detection_coordinates = detection_result["detection_coordinates"]
 
-        result = []
-        for obj in detected_objects:
-            cls, bbox, _ = obj
-            result.append({
+        detections = []
+        for cls, crds in zip(detection_classes, detection_coordinates):
+            detections.append({
                 "class": cls,
-                "bbox": bbox  # (xmin, ymin, xmax, ymax)
+                "bbox": crds
             })
 
         return JSONResponse(content={
-            "detections": result
+            "detections": detections
         })
 
     except Exception as e:
@@ -137,7 +125,7 @@ async def search_by_bbox(file: UploadFile = File(...),
         cropped_image = query_image.crop((bbox_xmin, bbox_ymin, bbox_xmax, bbox_ymax))
 
         database = PGVectorDB(model_name, config)
-        embedding_model = load_image_embedding_model_from_path(model_name, config)
+        embedding_model = repository.get_model_by_name(model_name)
         retrieval_model = ImageRetrieval(embedding_model, database, config)
 
         retrieval_result = retrieval_model(cropped_image, query_id, category)
@@ -166,6 +154,12 @@ app.mount(
     name="outputs"
 )
 app.mount("/", StaticFiles(directory=frontend_build_path, html=True), name="frontend")
+
+
+@app.get("/reset/")
+async def clear_repository():
+    repository.clear()
+    return {"message": "Repository has been cleared."}
 
 
 # SPA 라우팅
