@@ -16,7 +16,7 @@ class Marqo(ImageEmbeddingModel):
         elif model_name == "marqo_ecommerce_b":
             model, _, preprocess = open_clip.create_model_and_transforms(
                 'hf-hub:Marqo/marqo-ecommerce-embeddings-B', device=self.device)
-        elif model_name == "marqo_ecommerce_l_tmp":
+        elif model_name == "marqo_ecommerce_l":
             model, _, preprocess = open_clip.create_model_and_transforms(
                 'hf-hub:Marqo/marqo-ecommerce-embeddings-L', device=self.device)
         else:

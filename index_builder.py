@@ -7,19 +7,22 @@ from tqdm import tqdm
 from dataset import IndexDataset
 from pgvector_database import PGVectorDB
 from image_embedding_model import ImageEmbeddingModel
-from yolo import ObjectDetectionModel
+from object_detection_model import ObjectDetectionModel
+from yolo import YOLO
 
 
-def load_image_embedding_model_from_path(model_name: str, cfg: dict):
+def load_model_from_path(model_name: str, cfg: dict):
     model_cfg = cfg["model"][model_name]
     module = importlib.import_module(model_cfg["model_dir"])
     class_name = model_cfg["model_name"]
     cls = getattr(module, class_name)
 
-    if not issubclass(cls, ImageEmbeddingModel):
-        raise TypeError(f"{class_name} does not inherit from ImageEmbeddingModel")
-
-    return cls(model_name, cfg)
+    if issubclass(cls, ImageEmbeddingModel):
+        return cls(model_name, cfg)
+    elif issubclass(cls, ObjectDetectionModel):
+        return cls(model_name, cfg)
+    else:
+        raise TypeError(f"{class_name} does not inherit from ImageEmbeddingModel or ObjectDetectionModel")
 
 
 if __name__ == "__main__":
@@ -39,9 +42,8 @@ if __name__ == "__main__":
     dataset = IndexDataset("eseltree", config)
     dataset.truncate_index_images(row_count)
 
-    detection_model = ObjectDetectionModel(config)
-
-    embedding_model = load_image_embedding_model_from_path(image_embedding_model_name, config)
+    detection_model = load_model_from_path("yolo", config)
+    embedding_model = load_model_from_path(image_embedding_model_name, config)
     batch_size = config["model"][image_embedding_model_name]["batch_size"]
 
     len_index_images = len(dataset.index_image_ids)

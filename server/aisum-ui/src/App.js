@@ -9,7 +9,7 @@ function App() {
   const [category, setCategory] = useState("");
   const [resultsByModel, setResultsByModel] = useState({});
   const fileInputRef = useRef(null);
-  const modelOptions = ["dreamsim_tmp", "magiclens", "marqo_ecommerce_l"];
+  const modelOptions = ["dreamsim", "magiclens", "marqo_ecommerce_l"];
 
   const handleFileChange = (event) => {
     const file = event.target.files[0];
@@ -19,9 +19,15 @@ function App() {
 
   const handleModelSelection = (e) => {
     const value = e.target.value;
-    setSelectedModels((prev) =>
-      prev.includes(value) ? prev.filter((m) => m !== value) : [...prev, value]
-    );
+    setSelectedModels((prev) => {
+        let updated;
+        if (prev.includes(value)) {
+            updated = prev.filter((m) => m !== value);
+        } else {
+            updated = [...prev, value];
+        }
+        return updated;
+    });
   };
 
   const handleSearch = async () => {
@@ -32,8 +38,7 @@ function App() {
     for (const model of selectedModels) {
       const formData = new FormData();
       formData.append("file", selectedFile);
-      formData.append("model_name", model);
-      formData.append("category", category);
+      formData.append("embedding_model_name", model);
 
       try {
         const response = await axios.post("http://127.0.0.1:8000/search/", formData);
@@ -84,8 +89,7 @@ function App() {
     if (useEnsemble) {
       const formData = new FormData();
       formData.append("file", selectedFile);
-      formData.append("model_name", "ensemble");
-      formData.append("category", category);
+      formData.append("embedding_model_name", "ensemble");
 
       try {
         const response = await axios.post("http://127.0.0.1:8000/search/", formData);
@@ -135,15 +139,22 @@ function App() {
     setResultsByModel(newResults);
   };
 
-  const handleReset = () => {
-    setSelectedFile(null);
-    setPreviewURL(null);
-    setCategory("");
-    setSelectedModels([]);
-    setUseEnsemble(false);
-    setResultsByModel({});
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+  const handleReset = async () => {
+    try {
+        const response = await axios.get("http://127.0.0.1:8000/reset/");
+        console.log(response.data.message);
+    } catch(error) {
+        console.error('Error processing reset:', error);
+    } finally {
+        setSelectedFile(null);
+        setPreviewURL(null);
+        setCategory("");
+        setSelectedModels([]);
+        setUseEnsemble(false);
+        setResultsByModel({});
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
     }
   };
 
