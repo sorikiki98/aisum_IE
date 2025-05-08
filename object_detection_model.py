@@ -3,11 +3,10 @@ import torch.nn as nn
 
 
 class ObjectDetectionModel(nn.Module, ABC):
-    def __init(self, model_name, cfg):
+    def __init__(self, model_name, cfg):
         super().__init__()
         self._name = model_name
         self.model_cfg = cfg["model"][model_name]
-        self._indexing = False
 
     @property
     @abstractmethod
