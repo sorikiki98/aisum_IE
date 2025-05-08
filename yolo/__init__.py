@@ -6,16 +6,17 @@ from object_detection_model import ObjectDetectionModel
 
 
 class YOLO(ObjectDetectionModel):
-    def __init__(self, model_name, config):
+    def __init__(self, model_name, config, indexing=False):
         super().__init__(model_name, config)
         self._model = backbone(self.model_cfg["weights"])
         self._num_objects = self.model_cfg["num_objects"]
+        self._indexing = indexing
 
     def forward(self, pil_images, img_ids):
         if not isinstance(pil_images, list):
             pil_images = [pil_images]
         if not isinstance(img_ids, np.ndarray):
-            img_ids = np.array(img_ids)
+            img_ids = np.array([img_ids])
         detection_results = []
         for img in pil_images:
             pred = self.model.predict(img, verbose=False)[0]
@@ -108,11 +109,11 @@ class YOLO(ObjectDetectionModel):
     def _filter_edge_boxes(candidates, orig_w, orig_h):
         def is_at_border(c):
             xmin, ymin, xmax, ymax = c["bbox"]
-            if (ymax < 0.20 * orig_h) and (ymin < 0.02 * orig_h):
+            if (ymax > 0.80 * orig_h) and (ymin > 0.98 * orig_h):
                 return True
             if (ymin > 0.80 * orig_h) and (ymax > 0.98 * orig_h):
                 return True
-            if (xmax < 0.20 * orig_w) and (xmin < 0.02 * orig_w):
+            if (xmax > 0.80 * orig_w) and (xmin > 0.98 * orig_w):
                 return True
             if (xmin > 0.80 * orig_w) and (xmax > 0.98 * orig_w):
                 return True
@@ -126,6 +127,8 @@ class YOLO(ObjectDetectionModel):
         return [c for c in candidates if c["conf"] >= min_conf]
 
     # top-k 박스 선택 로직
-    @staticmethod
-    def _select_topk_by_area(candidates, k=3):
-        return sorted(candidates, key=lambda x: x["area"], reverse=True)[:k]
+    def _select_topk_by_area(self, candidates, k=3):
+        if self._indexing:
+            return sorted(candidates, key=lambda x: x["area"], reverse=True)[:k]
+        else:
+            return sorted(candidates, key=lambda x: x["area"], reverse=True)
