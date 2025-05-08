@@ -1,7 +1,7 @@
 from tqdm import tqdm
 import numpy as np
 import os
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from pathlib import Path
 
 
@@ -26,8 +26,11 @@ class IndexDataset:
         batch_images = []
 
         for file_path, img_id in zip(batch_files, batch_ids):
-            img = Image.open(file_path).convert("RGB")
-            batch_images.append(img)
+            try:
+                img = Image.open(file_path).convert("RGB")
+                batch_images.append(img)
+            except (FileNotFoundError, UnidentifiedImageError, OSError):
+                continue
         return batch_images, batch_ids
 
     def truncate_index_images(self, row_count=0):
