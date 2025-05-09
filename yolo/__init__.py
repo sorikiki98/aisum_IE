@@ -7,10 +7,9 @@ from object_detection_model import ObjectDetectionModel
 
 class YOLO(ObjectDetectionModel):
     def __init__(self, model_name, config, indexing=False):
-        super().__init__(model_name, config)
+        super().__init__(model_name, config, indexing)
         self._model = backbone(self.model_cfg["weights"])
         self._num_objects = self.model_cfg["num_objects"]
-        self._indexing = indexing
 
     def forward(self, pil_images, img_ids):
         if not isinstance(pil_images, list):
