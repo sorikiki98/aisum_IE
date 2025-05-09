@@ -20,7 +20,7 @@ def load_model_from_path(model_name: str, cfg: dict):
     if issubclass(cls, ImageEmbeddingModel):
         return cls(model_name, cfg)
     elif issubclass(cls, ObjectDetectionModel):
-        return cls(model_name, cfg)
+        return cls(model_name, cfg, True)
     else:
         raise TypeError(f"{class_name} does not inherit from ImageEmbeddingModel or ObjectDetectionModel")
 
