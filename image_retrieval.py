@@ -38,9 +38,9 @@ class ImageRetrieval(nn.Module):
 
             for idx, (img_id, cat, similarity) in enumerate(
                     zip(result_id, result_cat, result_similarity)):
-                img_id = img_id.split("_")[:-1]
+                img_id = img_id.split("_")[1:-1]
                 img_id = "_".join(img_id)
-                file_path = list(self.index_image_folder.rglob(f"{img_id}.jpg"))[0]
+                file_path = list(self.index_image_folder.rglob(f"{img_id}.*"))[0]
                 save_name = f"top_{idx + 1}_{similarity}.jpg"
                 save_path = os.path.join(str(retrieved_image_folder), save_name)
 

@@ -8,7 +8,7 @@
     "port": "5432"
   },
   "data": {
-    "index_image_folder_path": "/mnt/d/item_image",
+    "index_image_folder_path": "/mnt/c/Users/user/PycharmProjects/aisum_IE/data/eseltree/images",
     "query_image_folder_path": "/mnt/c/Users/user/PycharmProjects/aisum_IE/data/test/images",
     "retrieved_image_folder_path": "/mnt/c/Users/user/PycharmProjects/aisum_IE/outputs",
     "image_extensions": [
@@ -23,19 +23,19 @@
       "model_dir": "magiclens",
       "model_name": "MagicLens",
       "num_dimension": 768,
-      "batch_size": 32
+      "batch_size": 4
     },
     "unicom": {
       "model_dir": "unicom",
       "model_name": "Unicom",
       "num_dimension": 512,
-      "batch_size": 32
+      "batch_size": 8
     },
     "imagebind": {
       "model_dir": "imagebind",
       "model_name": "ImageBind",
       "num_dimension": 1024,
-      "batch_size": 128
+      "batch_size": 32
     },
     "openai_clip": {
       "model_dir": "openai_clip",
@@ -47,7 +47,7 @@
       "model_dir": "laion_clip",
       "model_name": "LaionCLIP",
       "num_dimension": 1024,
-      "batch_size": 16
+      "batch_size": 4
     },
     "coca_mscoco": {
       "model_dir": "coca",
@@ -136,7 +136,7 @@
   },
   "ensemble": {
     "first": "dreamsim",
-    "second": "marqo_ecommerce_l",
-    "third": "magiclens"
+    "second": "imagebind",
+    "third": "unicom"
   }
 }

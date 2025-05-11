@@ -1,6 +1,8 @@
 import importlib
 from image_embedding_model import ImageEmbeddingModel
 from object_detection_model import ObjectDetectionModel
+from pgvector_database import PGVectorDB
+from image_retrieval import ImageRetrieval
 
 
 class ModelRepository:
@@ -28,3 +30,45 @@ class ModelRepository:
 
     def clear(self):
         self._models = {}
+
+
+class DatabaseRepository:
+    def __init__(self, config):
+        self._databases = {}
+        self.config = config
+
+    def get_db_by_name(self, model_name: str):
+        if model_name not in self._databases:
+            self._add_db_by_name(model_name)
+        return self._databases[model_name]
+
+    def _add_db_by_name(self, model_name: str):
+        self._databases[model_name] = PGVectorDB(model_name, self.config)
+
+    def clear(self):
+        self._databases = {}
+
+
+class ImageRetrievalRepository:
+    def __init__(self, config):
+        self._retrieval_results = {}
+        self._model_repository = ModelRepository(config)
+        self._database_repository = DatabaseRepository(config)
+        self.config = config
+
+    def get_retrieval_result_by_name(self, model_name, query_image, query_id, category):
+        if model_name in self._retrieval_results:
+            return self._retrieval_results[model_name]
+        embedding_model = self._model_repository.get_model_by_name(model_name)
+        database = self._database_repository.get_db_by_name(model_name)
+        retrieval_model = ImageRetrieval(embedding_model, database, self.config)
+        self._retrieval_results[model_name] = retrieval_model(query_image, query_id, category)
+        return self._retrieval_results[model_name]
+
+    def reset(self):
+        self._model_repository.clear()
+        self._database_repository.clear()
+        self.clear_retrieval_results()
+
+    def clear_retrieval_results(self):
+        self._retrieval_results = {}

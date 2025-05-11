@@ -6,8 +6,6 @@ import sys
 from pathlib import Path
 import traceback
 import json
-import importlib
-from PIL.Image import Image
 
 with open("../config.json", "r", encoding="utf-8") as f:
     config = json.load(f)
@@ -16,9 +14,9 @@ sys.path.append(config["root_path"])
 
 from dataset import QueryDataset
 from pgvector_database import PGVectorDB
-from product_matching import ImageRetrieval
+from image_retrieval import ImageRetrieval
 from ensemble_retrieval import Ensemble
-from repository import ModelRepository
+from repository import ImageRetrievalRepository
 
 app = FastAPI()
 
@@ -30,7 +28,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-repository = ModelRepository(config)
+repository = ImageRetrievalRepository(config)
 
 
 @app.post("/search/")
@@ -45,28 +43,25 @@ async def search_by_original_image(
         query_image, query_id = dataset.prepare_query_images(0, 1)
 
         if embedding_model_name == "ensemble":
+            print("ensemble--------------")
             # 앙상블 검색
             ensemble_model_names = config["ensemble"].values()
-            retrieval_models = dict()
 
+            retrieval_results = dict()
             for name in ensemble_model_names:
-                db = PGVectorDB(name, config)
-                mdl = repository.get_model_by_name(name)
-                retrieval_models[name] = ImageRetrieval(mdl, db, config)
-
-            ensemble_model = Ensemble(retrieval_models)
-            result = ensemble_model(query_image, query_id, None)
+                result = repository.get_retrieval_result_by_name(name, query_image, query_id, None)
+                retrieval_results[name] = result
+            ensemble = Ensemble(retrieval_results, config)
+            ensemble_result = ensemble()
+            print(ensemble_result)
 
             return JSONResponse(content={
-                "similar_images": result['result_paths'][0] if result['result_paths'] else [],
-                "distances": result['result_distances'][0]
+                "similar_images": ensemble_result['result_paths'][0] if ensemble_result['result_paths'] else [],
+                "distances": ensemble_result['result_distances'][0]
             })
         else:
             # 단일 모델 검색
-            database = PGVectorDB(embedding_model_name, config)
-            embedding_model = repository.get_model_by_name(embedding_model_name)
-            retrieval_model = ImageRetrieval(embedding_model, database, config)
-            result = retrieval_model(query_image, query_id, None)
+            result = repository.get_retrieval_result_by_name(embedding_model_name, query_image, query_id, None)
 
             return JSONResponse(content={
                 "similar_images": result['result_paths'][0] if result['result_paths'] else [],
@@ -144,6 +139,18 @@ async def search_by_bbox(file: UploadFile = File(...),
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
+@app.get("/reset")
+async def reset():
+    repository.clear_retrieval_results()
+    return {"message": "Retrieval results has been cleared."}
+
+
+@app.get("/reset_all")
+async def reset_all():
+    repository.reset()
+    return {"message": "Repository has been cleared."}
+
+
 project_root = config["root_path"]
 frontend_build_path = Path(project_root) / "server" / "aisum-ui" / "build"
 
@@ -154,12 +161,6 @@ app.mount(
     name="outputs"
 )
 app.mount("/", StaticFiles(directory=frontend_build_path, html=True), name="frontend")
-
-
-@app.get("/reset/")
-async def clear_repository():
-    repository.clear()
-    return {"message": "Repository has been cleared."}
 
 
 # SPA 라우팅
