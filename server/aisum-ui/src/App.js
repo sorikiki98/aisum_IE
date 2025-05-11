@@ -9,12 +9,19 @@ function App() {
   const [category, setCategory] = useState("");
   const [resultsByModel, setResultsByModel] = useState({});
   const fileInputRef = useRef(null);
-  const modelOptions = ["dreamsim", "magiclens", "marqo_ecommerce_l"];
+  const modelOptions = ["dreamsim", "imagebind", "unicom"]
 
-  const handleFileChange = (event) => {
+  const handleFileChange = async (event) => {
+    try {
+        const response = await axios.get("http://127.0.0.1:8000/reset");
+        console.log(response.data.message);
+    } catch(error) {
+        console.error('Error processing reset:', error);
+    }
     const file = event.target.files[0];
     setSelectedFile(file);
     setPreviewURL(URL.createObjectURL(file));
+    setResultsByModel({});
   };
 
   const handleModelSelection = (e) => {
@@ -30,118 +37,109 @@ function App() {
     });
   };
 
-  const handleSearch = async () => {
-    if (!selectedFile || (selectedModels.length === 0 && !useEnsemble)) return;
+  const handleSearch = () => {
+  if (!selectedFile || (selectedModels.length === 0 && !useEnsemble)) return;
 
-    const newResults = {};
+  const results = {};
+  const modelPromises = selectedModels.map((model) => {
+    const formData = new FormData();
+    formData.append("file", selectedFile);
+    formData.append("embedding_model_name", model);
 
-    for (const model of selectedModels) {
-      const formData = new FormData();
-      formData.append("file", selectedFile);
-      formData.append("embedding_model_name", model);
-
-      try {
-        const response = await axios.post("http://127.0.0.1:8000/search/", formData);
+    return axios.post("http://127.0.0.1:8000/search/", formData)
+      .then((response) => {
         const result = response.data;
-
-        if (!result) {
-          throw new Error('서버에서 유효한 결과를 받지 못했습니다.');
-        }
-
         const imagePaths = result.similar_images || [];
         const distances = result.distances || [];
 
-        if (!imagePaths.length || !distances.length) {
-          throw new Error('검색 결과가 없습니다.');
-        }
-
-        const fullUrls = imagePaths.map(
-          (path) => `http://127.0.0.1:8000${path.replace(/\\/g, "/")}`
+        const fullUrls = imagePaths.map((path) =>
+          `http://127.0.0.1:8000${path.replace(/\\/g, "/")}`
         );
 
-        newResults[model] = {
+        results[model] = {
           urls: fullUrls,
           distances: distances
         };
-      } catch (error) {
+      })
+      .catch((error) => {
         console.error(`Error processing model ${model}:`, error);
         let errorMessage = error.message;
 
-        // axios 에러인 경우 더 자세한 정보 추출
         if (error.response) {
-          // 서버가 응답을 반환한 경우
-          console.error('Server Error Data:', error.response.data);
           errorMessage = `Server Error (${error.response.status}): ${JSON.stringify(error.response.data)}`;
         } else if (error.request) {
-          // 요청은 보냈지만 응답을 받지 못한 경우
           errorMessage = '서버로부터 응답을 받지 못했습니다.';
         }
 
-        newResults[model] = {
+        results[model] = {
           urls: [],
           distances: [],
           error: errorMessage
         };
-      }
-    }
+      });
+  });
 
-    // Ensemble 처리
-    if (useEnsemble) {
+  Promise.all(modelPromises)
+    .then(() => {
+      setResultsByModel(results);
+
+      if (!useEnsemble) return;
+
       const formData = new FormData();
       formData.append("file", selectedFile);
       formData.append("embedding_model_name", "ensemble");
 
-      try {
-        const response = await axios.post("http://127.0.0.1:8000/search/", formData);
-        const result = response.data;
+      return axios.post("http://127.0.0.1:8000/search/", formData)
+        .then((response) => {
+          const result = response.data;
+          if (!result) throw new Error('앙상블 결과를 받지 못했습니다.');
+          console.log(result)
 
-        if (!result) {
-          throw new Error('앙상블 결과를 받지 못했습니다.');
-        }
+          const imagePaths = result.similar_images || [];
+          const distances = result.distances || [];
 
-        const imagePaths = result.similar_images || [];
-        const distances = result.distances || [];
+          if (!imagePaths.length || !distances.length) {
+            throw new Error('앙상블 검색 결과가 없습니다.');
+          }
 
-        if (!imagePaths.length || !distances.length) {
-          throw new Error('앙상블 검색 결과가 없습니다.');
-        }
+          const fullUrls = imagePaths.map((path, idx) =>
+             `http://127.0.0.1:8000${path.replace(/\\/g, "/")}?v=${Date.now()}_${idx}`
+          );
 
-        const fullUrls = imagePaths.map(
-          (path) => `http://127.0.0.1:8000${path.replace(/\\/g, "/")}`
-        );
+          setResultsByModel((prev) => ({
+            ...prev,
+            ensemble: {
+              urls: fullUrls,
+              distances: distances
+            }
+          }));
+        })
+        .catch((error) => {
+          console.error('Error processing ensemble:', error);
+          let errorMessage = error.message;
 
-        newResults['ensemble'] = {
-          urls: fullUrls,
-          distances: distances
-        };
-      } catch (error) {
-        console.error('Error processing ensemble:', error);
-        let errorMessage = error.message;
+          if (error.response) {
+            errorMessage = `Server Error (${error.response.status}): ${JSON.stringify(error.response.data)}`;
+          } else if (error.request) {
+            errorMessage = '서버로부터 응답을 받지 못했습니다.';
+          }
 
-        // axios 에러인 경우 더 자세한 정보 추출
-        if (error.response) {
-          // 서버가 응답을 반환한 경우
-          console.error('Server Error Data:', error.response.data);
-          errorMessage = `Server Error (${error.response.status}): ${JSON.stringify(error.response.data)}`;
-        } else if (error.request) {
-          // 요청은 보냈지만 응답을 받지 못한 경우
-          errorMessage = '서버로부터 응답을 받지 못했습니다.';
-        }
+          setResultsByModel((prev) => ({
+            ...prev,
+            ensemble: {
+              urls: [],
+              distances: [],
+              error: errorMessage
+            }
+          }));
+        });
+    });
+};
 
-        newResults['ensemble'] = {
-          urls: [],
-          distances: [],
-          error: errorMessage
-        };
-      }
-    }
-
-    setResultsByModel(newResults);
-  };
 
   const handleReset = async () => {
     try {
-        const response = await axios.get("http://127.0.0.1:8000/reset/");
+        const response = await axios.get("http://127.0.0.1:8000/reset_all");
         console.log(response.data.message);
     } catch(error) {
         console.error('Error processing reset:', error);
@@ -153,10 +151,11 @@ function App() {
         setUseEnsemble(false);
         setResultsByModel({});
         if (fileInputRef.current) {
-          fileInputRef.current.value = '';
+            fileInputRef.current.value = '';
         }
     }
   };
+
 
   return (
     <div style={{ display: 'flex', height: '100vh' }}>
@@ -247,7 +246,7 @@ function App() {
                     justifyContent: 'flex-start'
                   }}>
                     {resultsByModel['ensemble'].urls.map((url, index) => (
-                      <div key={index} style={{
+                      <div key={url} style={{
                         width: 'calc(6.5% - 4px)',
                         textAlign: 'center',
                         boxSizing: 'border-box'
@@ -289,7 +288,7 @@ function App() {
                       justifyContent: 'flex-start'
                     }}>
                       {data.urls.map((url, index) => (
-                        <div key={index} style={{
+                        <div key={url} style={{
                           width: 'calc(6.5% - 4px)',
                           textAlign: 'center',
                           boxSizing: 'border-box'
