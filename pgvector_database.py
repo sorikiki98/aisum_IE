@@ -22,6 +22,7 @@ class PGVectorDB:
             cur.execute(f"""
                 CREATE TABLE IF NOT EXISTS {table_name} (
                     id VARCHAR(255) PRIMARY KEY,
+                    code VARCHAR(255),
                     embedding VECTOR({num_dimensions}),
                     category VARCHAR(500)
                 );
@@ -37,21 +38,21 @@ class PGVectorDB:
         self.image_embedding_model_name = image_embedding_model_name
         self.config = config
 
-    def insert_embeddings(self, ids, image_embeddings, cats):
+    def insert_embeddings(self, ids, img_codes, image_embeddings, cats):
         table_name = f"image_embeddings_{self.image_embedding_model_name}"
 
         config = self.config
         conn = connect_db(config)
         cur = conn.cursor()
         try:
-            for id, embedding, cat in zip(ids, image_embeddings, cats):
+            for id, code, embedding, cat in zip(ids, img_codes, image_embeddings, cats):
                 query = f"""
-                    INSERT INTO {table_name} (id, embedding, category)
-                    VALUES (%s, %s, %s)
+                    INSERT INTO {table_name} (id, code, embedding, category)
+                    VALUES (%s, %s, %s, %s)
                     ON CONFLICT (id) DO NOTHING;
                 """
                 embedding = embedding.tolist()
-                cur.execute(query, (str(id), embedding, cat))
+                cur.execute(query, (str(id), str(code), embedding, cat))
             conn.commit()
 
         except Exception as e:
@@ -122,8 +123,9 @@ class PGVectorDB:
         cur = conn.cursor()
         table_name = f"image_embeddings_{self.image_embedding_model_name}"
 
-        cur.execute(f"SELECT COUNT(*) FROM {table_name};")
-        row_count = cur.fetchone()[0]
+        cur.execute(f"SELECT DISTINCT(code) FROM {table_name}")
+        rows = cur.fetchall()
+        indexed_img_codes = [row[0] for row in rows]
 
         cur.execute(f"SELECT COUNT(DISTINCT id) FROM {table_name};")
         unique_id_count = cur.fetchone()[0]
@@ -135,15 +137,15 @@ class PGVectorDB:
         conn.close()
 
         return {
-            "num_of_total_image_embeddings": row_count,
             "num_of_unique_image_embeddings": unique_id_count,
             "min_id": min_id,
-            "max_id": max_id
+            "max_id": max_id,
+            "indexed_codes": indexed_img_codes
         }
 
-    def insert_image_embeddings_into_postgres(self, batch_ids, image_embeddings, batch_cats):
+    def insert_image_embeddings_into_postgres(self, batch_ids, batch_img_codes, image_embeddings, batch_cats):
         self.create_index()
-        self.insert_embeddings(batch_ids, image_embeddings, batch_cats)
+        self.insert_embeddings(batch_ids, batch_img_codes, image_embeddings, batch_cats)
 
     def search_similar_vectors(self, query_ids, query_embeddings, category):
         table_name = f"image_embeddings_{self.image_embedding_model_name}"

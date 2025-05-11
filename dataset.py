@@ -18,6 +18,7 @@ class IndexDataset:
         index_image_ids = [file.parent.name + "_" + file.stem for file in index_image_files]
         self.index_image_files = index_image_files
         self.index_image_ids = index_image_ids
+        self.n_of_broken_images = 0
 
     def prepare_index_images(self, batch_idx, batch_size):
         batch_files = self.index_image_files[batch_idx * batch_size: (batch_idx + 1) * batch_size]
@@ -29,13 +30,15 @@ class IndexDataset:
             try:
                 img = Image.open(file_path).convert("RGB")
                 batch_images.append(img)
-            except (FileNotFoundError, UnidentifiedImageError, OSError):
-                continue
+            except (FileNotFoundError, UnidentifiedImageError, OSError, SyntaxError):
+                self.n_of_broken_images += 1
         return batch_images, batch_ids
 
-    def truncate_index_images(self, row_count=0):
-        self.index_image_files = self.index_image_files[row_count:]
-        self.index_image_ids = self.index_image_ids[row_count:]
+    def truncate_index_images(self, indexed_codes):
+        self.index_image_files = [file for file in self.index_image_files
+                                  if (file.parent.name + "_" + file.stem) not in indexed_codes]
+        self.index_image_ids = [img_id for img_id in self.index_image_ids
+                                if img_id not in indexed_codes]
 
 
 class QueryDataset:

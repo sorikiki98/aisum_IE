@@ -22,13 +22,14 @@ class YOLO(ObjectDetectionModel):
             result = self._get_candidates(pred)
             detection_results.append(result)
 
-        flattened_classes, flattened_coordinates, flattened_images, flattened_ids = \
+        flattened_classes, flattened_coordinates, flattened_images, flattened_original_ids, flattened_segment_ids = \
             self._flatten_batch_detection_results(detection_results, img_ids)
         return {
             "detection_classes": flattened_classes,
             "detection_coordinates": flattened_coordinates,
             "detection_images": flattened_images,
-            "image_segment_ids": flattened_ids
+            "original_image_ids": flattened_original_ids,
+            "image_segment_ids": flattened_segment_ids
         }
 
     @property
@@ -70,19 +71,23 @@ class YOLO(ObjectDetectionModel):
     def _flatten_batch_detection_results(detection_results, batch_ids):
         batch_flattened_images = []
         batch_flattened_classes = []
-        batch_flattened_ids = []
+        batch_flattened_original_ids = []
+        batch_flattened_segment_ids = []
         batch_flattened_coordinates = []
         for result, batch_id in zip(detection_results, batch_ids):
             detected_classes = [obj[0] for obj in result]
             detected_coordinates = [obj[1] for obj in result]
             detected_images = [obj[2] for obj in result]
             detected_ids = [np.char.add(batch_id, f"_{str(i)}") for i, _ in enumerate(range(len(detected_images)))]
+            original_ids = [batch_id for _ in range(len(detected_images))]
 
             batch_flattened_classes.extend(detected_classes)
             batch_flattened_coordinates.extend(detected_coordinates)
             batch_flattened_images.extend(detected_images)
-            batch_flattened_ids.extend(detected_ids)
-        return batch_flattened_classes, batch_flattened_coordinates, batch_flattened_images, batch_flattened_ids
+            batch_flattened_original_ids.extend(original_ids)
+            batch_flattened_segment_ids.extend(detected_ids)
+        return (batch_flattened_classes, batch_flattened_coordinates, batch_flattened_images,
+                batch_flattened_original_ids, batch_flattened_segment_ids)
 
     # 중복 bounding box 제거 로직
     def _filter_approx_duplicate_bboxes(self, candidates, dif):
