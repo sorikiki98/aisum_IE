@@ -1,14 +1,11 @@
 import json
 import importlib
 import sys
-from PIL.Image import Image
-from typing import List
 from tqdm import tqdm
 from dataset import IndexDataset
 from pgvector_database import PGVectorDB
 from image_embedding_model import ImageEmbeddingModel
 from object_detection_model import ObjectDetectionModel
-from yolo import YOLO
 
 
 def load_model_from_path(model_name: str, cfg: dict):
@@ -37,10 +34,10 @@ if __name__ == "__main__":
         raise ValueError("Invalid embedding model name.")
 
     database = PGVectorDB(image_embedding_model_name, config)
-    row_count = database.get_pgvector_info()["num_of_total_image_embeddings"]
+    indexed_codes = database.get_pgvector_info()["indexed_codes"]
 
     dataset = IndexDataset("eseltree", config)
-    dataset.truncate_index_images(row_count)
+    dataset.truncate_index_images(indexed_codes)
 
     detection_model = load_model_from_path("yolo", config)
     embedding_model = load_model_from_path(image_embedding_model_name, config)
@@ -57,7 +54,7 @@ if __name__ == "__main__":
         batch_detection_classes = batch_detection_result["detection_classes"]
         batch_detection_images = batch_detection_result["detection_images"]
         batch_image_segment_ids = batch_detection_result["image_segment_ids"]
-
+        batch_original_image_ids = batch_detection_result["original_image_ids"]
         batch_embeddings_ndarray = embedding_model(batch_detection_images)
-        database.insert_image_embeddings_into_postgres(batch_image_segment_ids, batch_embeddings_ndarray,
-                                                       batch_detection_classes)
+        database.insert_image_embeddings_into_postgres(batch_image_segment_ids, batch_original_image_ids,
+                                                       batch_embeddings_ndarray, batch_detection_classes)
