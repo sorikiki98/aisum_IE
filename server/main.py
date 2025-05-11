@@ -15,6 +15,7 @@ sys.path.append(config["root_path"])
 from dataset import QueryDataset
 from pgvector_database import PGVectorDB
 from image_retrieval import ImageRetrieval
+from yolo import YOLO
 from ensemble_retrieval import Ensemble
 from repository import ImageRetrievalRepository
 
@@ -43,17 +44,8 @@ async def search_by_original_image(
         query_image, query_id = dataset.prepare_query_images(0, 1)
 
         if embedding_model_name == "ensemble":
-            print("ensemble--------------")
             # 앙상블 검색
-            ensemble_model_names = config["ensemble"].values()
-
-            retrieval_results = dict()
-            for name in ensemble_model_names:
-                result = repository.get_retrieval_result_by_name(name, query_image, query_id, None)
-                retrieval_results[name] = result
-            ensemble = Ensemble(retrieval_results, config)
-            ensemble_result = ensemble()
-            print(ensemble_result)
+            ensemble_result = repository.ensemble(query_image, query_id, None)
 
             return JSONResponse(content={
                 "similar_images": ensemble_result['result_paths'][0] if ensemble_result['result_paths'] else [],
@@ -82,7 +74,7 @@ async def detect_fashion_objects(file: UploadFile = File(...)):
         await dataset.save_query_images(file)
         query_image, query_id = dataset.prepare_query_images(0, 1)
 
-        detection_model = repository.get_model_by_name("yolo")
+        detection_model = YOLO("yolo", config)
         detection_result = detection_model(query_image, query_id)
         detection_classes = detection_result["detection_classes"]
         detection_coordinates = detection_result["detection_coordinates"]
@@ -117,21 +109,24 @@ async def search_by_bbox(file: UploadFile = File(...),
         await dataset.save_query_images(file)
         query_image, query_id = dataset.prepare_query_images(0, 1)
 
-        cropped_image = query_image.crop((bbox_xmin, bbox_ymin, bbox_xmax, bbox_ymax))
+        cropped_image = query_image[0].crop((bbox_xmin, bbox_ymin, bbox_xmax, bbox_ymax))
 
-        database = PGVectorDB(model_name, config)
-        embedding_model = repository.get_model_by_name(model_name)
-        retrieval_model = ImageRetrieval(embedding_model, database, config)
+        if model_name == "ensemble":
+            # 앙상블 검색
+            ensemble_result = repository.ensemble(cropped_image, query_id, category)
 
-        retrieval_result = retrieval_model(cropped_image, query_id, category)
+            return JSONResponse(content={
+                "similar_images": ensemble_result['result_paths'][0] if ensemble_result['result_paths'] else [],
+                "distances": ensemble_result['result_distances'][0]
+            })
+        else:
+            # 단일 모델 검색
+            result = repository.get_retrieval_result_by_name(model_name, cropped_image, query_id, category)
 
-        top_k_paths = retrieval_result['result_paths'][0] if retrieval_result['result_paths'] else []
-        top_k_distances = retrieval_result['result_distances'][0]
-
-        return JSONResponse(content={
-            "similar_images": top_k_paths,
-            "distances": top_k_distances
-        })
+            return JSONResponse(content={
+                "similar_images": result['result_paths'][0] if result['result_paths'] else [],
+                "distances": result['result_distances'][0]
+            })
 
     except Exception as e:
         print(f"❌ BoundingBox 검색 실패: {e}")

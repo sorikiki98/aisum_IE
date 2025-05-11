@@ -3,6 +3,7 @@ from image_embedding_model import ImageEmbeddingModel
 from object_detection_model import ObjectDetectionModel
 from pgvector_database import PGVectorDB
 from image_retrieval import ImageRetrieval
+from ensemble_retrieval import Ensemble
 
 
 class ModelRepository:
@@ -64,6 +65,17 @@ class ImageRetrievalRepository:
         retrieval_model = ImageRetrieval(embedding_model, database, self.config)
         self._retrieval_results[model_name] = retrieval_model(query_image, query_id, category)
         return self._retrieval_results[model_name]
+
+    def ensemble(self, query_image, query_id, category):
+        ensemble_model_names = self.config["ensemble"].values()
+        retrieval_results = dict()
+        for name in ensemble_model_names:
+            result = self.get_retrieval_result_by_name(name, query_image, query_id, category)
+            retrieval_results[name] = result
+        ensemble = Ensemble(retrieval_results, self.config)
+        ensemble_result = ensemble()
+
+        return ensemble_result
 
     def reset(self):
         self._model_repository.clear()
