@@ -44,13 +44,13 @@ class ImageRetrieval(nn.Module):
                 save_name = f"top_{idx + 1}_{similarity}.jpg"
                 save_path = os.path.join(str(retrieved_image_folder), save_name)
 
-                if os.path.exists(file_path):
+                try:
                     image = Image.open(file_path)
                     image.save(save_path)
                     relative_path = f"{retrieved_image_folder}/{save_name}"
                     batch_paths.append(relative_path)
-                else:
-                    print(f"File does not exist: {file_path}")
+                except Exception as e:
+                    print(f"[ERROR] Failed to process image at {file_path}: {e}")
 
             retrieved_image_file_paths.append(batch_paths)
         return {
