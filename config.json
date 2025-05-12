@@ -1,15 +1,30 @@
 {
   "root_path": "/mnt/c/Users/user/PycharmProjects/aisum_IE",
   "database": {
-    "dbname": "postgres",
-    "user": "postgres",
-    "password": "0000",
-    "host": "localhost",
-    "port": "5432"
+    "postgres": {
+      "dbname": "postgres",
+      "user": "postgres",
+      "password": "0000",
+      "host": "localhost",
+      "port": "5432"
+    },
+    "mysql": {
+      "host": "db.main.piclick.kr",
+      "port": 3306,
+      "user": "piclick",
+      "password": "psr9566!",
+      "db": "piclick",
+      "read_timeout": 300,
+      "write_timeout": 300,
+      "connect_timeout": 300
+    }
   },
   "data": {
     "index_image_folder_path": "/mnt/c/Users/user/PycharmProjects/aisum_IE/data/eseltree/images",
-    "query_image_folder_path": "/mnt/c/Users/user/PycharmProjects/aisum_IE/data/test/images",
+    "query_image_folder_path": {
+      "server": "/mnt/c/Users/user/PycharmProjects/aisum_IE/data/test/images",
+      "aisum": "/mnt/c/Users/user/PycharmProjects/aisum_IE/data/aisum/images"
+    },
     "retrieved_image_folder_path": "/mnt/c/Users/user/PycharmProjects/aisum_IE/outputs",
     "image_extensions": [
       ".jpg",
@@ -107,13 +122,13 @@
       "model_dir": "marqo",
       "model_name": "Marqo",
       "num_dimension": 512,
-      "batch_size": 128
+      "batch_size": 32
     },
     "marqo_fashionsiglip": {
       "model_dir": "marqo",
       "model_name": "Marqo",
       "num_dimension": 768,
-      "batch_size": 128
+      "batch_size": 32
     },
     "marqo_ecommerce_b": {
       "model_dir": "marqo",

@@ -35,33 +35,33 @@ class ModelRepository:
 
 class DatabaseRepository:
     def __init__(self, config):
-        self._databases = {}
+        self.databases = {}
         self.config = config
 
     def get_db_by_name(self, model_name: str):
-        if model_name not in self._databases:
+        if model_name not in self.databases:
             self._add_db_by_name(model_name)
-        return self._databases[model_name]
+        return self.databases[model_name]
 
     def _add_db_by_name(self, model_name: str):
-        self._databases[model_name] = PGVectorDB(model_name, self.config)
+        self.databases[model_name] = PGVectorDB(model_name, self.config)
 
     def clear(self):
-        self._databases = {}
+        self.databases = {}
 
 
 class ImageRetrievalRepository:
     def __init__(self, config):
         self._retrieval_results = {}
-        self._model_repository = ModelRepository(config)
-        self._database_repository = DatabaseRepository(config)
+        self.models = ModelRepository(config)
+        self.databases = DatabaseRepository(config)
         self.config = config
 
     def get_retrieval_result_by_name(self, model_name, query_image, query_id, category):
         if model_name in self._retrieval_results:
             return self._retrieval_results[model_name]
-        embedding_model = self._model_repository.get_model_by_name(model_name)
-        database = self._database_repository.get_db_by_name(model_name)
+        embedding_model = self.models.get_model_by_name(model_name)
+        database = self.databases.get_db_by_name(model_name)
         retrieval_model = ImageRetrieval(embedding_model, database, self.config)
         self._retrieval_results[model_name] = retrieval_model(query_image, query_id, category)
         return self._retrieval_results[model_name]
@@ -78,8 +78,8 @@ class ImageRetrievalRepository:
         return ensemble_result
 
     def reset(self):
-        self._model_repository.clear()
-        self._database_repository.clear()
+        self.models.clear()
+        self.databases.clear()
         self.clear_retrieval_results()
 
     def clear_retrieval_results(self):

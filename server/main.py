@@ -13,10 +13,7 @@ with open("../config.json", "r", encoding="utf-8") as f:
 sys.path.append(config["root_path"])
 
 from dataset import QueryDataset
-from pgvector_database import PGVectorDB
-from image_retrieval import ImageRetrieval
 from yolo import YOLO
-from ensemble_retrieval import Ensemble
 from repository import ImageRetrievalRepository
 
 app = FastAPI()
@@ -38,26 +35,26 @@ async def search_by_original_image(
         embedding_model_name: str = Form(...)
 ):
     try:
-        dataset = QueryDataset("test", config)
+        dataset = QueryDataset("server", config)
         dataset.clean_query_images()
         await dataset.save_query_images(file)
         query_image, query_id = dataset.prepare_query_images(0, 1)
 
         if embedding_model_name == "ensemble":
             # 앙상블 검색
-            ensemble_result = repository.ensemble(query_image, query_id, None)
-
+            result = repository.ensemble(query_image, query_id, "")
+            distances = [1 - score for score in result['p_scores'][0]]
             return JSONResponse(content={
-                "similar_images": ensemble_result['result_paths'][0] if ensemble_result['result_paths'] else [],
-                "distances": ensemble_result['result_distances'][0]
+                "similar_images": result['result_local_paths'][0] if result['result_local_paths'] else [],
+                "distances": distances
             })
         else:
             # 단일 모델 검색
-            result = repository.get_retrieval_result_by_name(embedding_model_name, query_image, query_id, None)
-
+            result = repository.get_retrieval_result_by_name(embedding_model_name, query_image, query_id, "")
+            distances = [1 - score for score in result['p_scores'][0]]
             return JSONResponse(content={
-                "similar_images": result['result_paths'][0] if result['result_paths'] else [],
-                "distances": result['result_distances'][0]
+                "similar_images": result['result_local_paths'][0] if result['result_local_paths'] else [],
+                "distances": distances
             })
 
     except Exception as e:
@@ -69,7 +66,7 @@ async def search_by_original_image(
 @app.post("/detect/")
 async def detect_fashion_objects(file: UploadFile = File(...)):
     try:
-        dataset = QueryDataset("test", config)
+        dataset = QueryDataset("server", config)
         dataset.clean_query_images()
         await dataset.save_query_images(file)
         query_image, query_id = dataset.prepare_query_images(0, 1)
@@ -104,7 +101,7 @@ async def search_by_bbox(file: UploadFile = File(...),
                          bbox_ymax: int = Form(...),
                          category: str = Form(None)):
     try:
-        dataset = QueryDataset("test", config)
+        dataset = QueryDataset("server", config)
         dataset.clean_query_images()
         await dataset.save_query_images(file)
         query_image, query_id = dataset.prepare_query_images(0, 1)
@@ -113,19 +110,19 @@ async def search_by_bbox(file: UploadFile = File(...),
 
         if model_name == "ensemble":
             # 앙상블 검색
-            ensemble_result = repository.ensemble(cropped_image, query_id, category)
-
+            result = repository.ensemble(cropped_image, query_id, category)
+            distances = [1 - score for score in result['p_scores'][0]]
             return JSONResponse(content={
-                "similar_images": ensemble_result['result_paths'][0] if ensemble_result['result_paths'] else [],
-                "distances": ensemble_result['result_distances'][0]
+                "similar_images": result['result_local_paths'][0] if result['result_local_paths'] else [],
+                "distances": distances
             })
         else:
             # 단일 모델 검색
             result = repository.get_retrieval_result_by_name(model_name, cropped_image, query_id, category)
-
+            distances = [1 - score for score in result['p_scores'][0]]
             return JSONResponse(content={
-                "similar_images": result['result_paths'][0] if result['result_paths'] else [],
-                "distances": result['result_distances'][0]
+                "similar_images": result['result_local_paths'][0] if result['result_local_paths'] else [],
+                "distances": distances
             })
 
     except Exception as e:
