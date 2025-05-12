@@ -17,14 +17,17 @@ class ImageRetrieval(nn.Module):
         self.index_image_folder = Path(config["data"]["index_image_folder_path"])
         self.model_name = model.name
 
-    def forward(self, query_image, query_id, category):
-        if not isinstance(query_image, list):
-            query_image = [query_image]
-        query_embeddings_ndarray = self._model(query_image)
+    def forward(self, query_images, query_ids, query_categories):
+        # query_ids = [파일명A_0, 파일명A_1, 파일명A_2, 파일명B_0, 파일명B_1, ...]
+        if not isinstance(query_images, list):
+            query_images = [query_images]
+        if not isinstance(query_categories, list):
+            query_categories = [query_categories]
+        query_embeddings_ndarray = self._model(query_images)
         result_ids, result_cats, result_similarities = (self._database.search_similar_vectors
-                                                        (query_id,
+                                                        (query_ids,
                                                          query_embeddings_ndarray,
-                                                         category))
+                                                         query_categories))  # [[10개], [10개], ...]
         retrieved_image_file_paths = []
         for i, (result_id, result_cat, result_similarity) in enumerate(
                 zip(result_ids, result_cats, result_similarities)):
@@ -37,10 +40,10 @@ class ImageRetrieval(nn.Module):
             os.makedirs(retrieved_image_folder, exist_ok=True)
 
             for idx, (img_id, cat, similarity) in enumerate(
-                    zip(result_id, result_cat, result_similarity)):
-                img_id = img_id.split("_")[1:-1]
-                img_id = "_".join(img_id)
-                file_path = list(self.index_image_folder.rglob(f"{img_id}.*"))[0]
+                    zip(result_id, result_cat, result_similarity)):  # [10개]
+                original_img_id = img_id.split("_")[1:-1]
+                original_img_id = "_".join(original_img_id)
+                file_path = list(self.index_image_folder.rglob(f"{original_img_id}.*"))[0]
                 save_name = f"top_{idx + 1}_{similarity}.jpg"
                 save_path = os.path.join(str(retrieved_image_folder), save_name)
 
@@ -55,6 +58,7 @@ class ImageRetrieval(nn.Module):
             retrieved_image_file_paths.append(batch_paths)
         return {
             "result_ids": result_ids,
-            "result_distances": result_similarities,
-            "result_paths": retrieved_image_file_paths
+            "result_local_paths": retrieved_image_file_paths,
+            "result_categories": result_cats,
+            "p_scores": result_similarities
         }

@@ -44,8 +44,12 @@ class IndexDataset:
 class QueryDataset:
     def __init__(self, dataset_name, config):
         self.dataset_name = dataset_name
-
-        query_image_folder = Path(config["data"]["query_image_folder_path"])
+        if dataset_name == "server":
+            query_image_folder = Path(config["data"]["query_image_folder_path"]["server"])
+        elif dataset_name == "aisum":
+            query_image_folder = Path(config["data"]["query_image_folder_path"]["aisum"])
+        else:
+            raise ValueError("Unknown query dataset name.")
         query_image_files = sorted(query_image_folder.glob("**/*.jpg"))
         query_image_ids = [file.stem for file in query_image_files]
         self.query_image_folder = query_image_folder
