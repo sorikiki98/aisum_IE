@@ -105,8 +105,10 @@ class AisumDBAdapter:
             ymdh = int(now.strftime('%Y%m%d%H'))
 
             for row in rows:
-                query_id, model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score = row
+                model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score = row
 
+                # model_name에 '_eseltree' 추가
+                custom_model_name = model_name + "_eseltree"
                 query = """
                     INSERT INTO pm_test_2nd_content_list 
                     (ymdh, model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score)
@@ -114,7 +116,8 @@ class AisumDBAdapter:
                 """
                 cur.execute(query, (
                     ymdh,
-                    model_name,
+                    #model_name,
+                    custom_model_name,
                     pu_id,
                     place_id,
                     c_key,
@@ -134,6 +137,10 @@ class AisumDBAdapter:
             cur.close()
             conn.close()
 
+    def save_top30_per_query_id(self, model_name=None):
+        local_db = self.repository.databases.get_db_by_name(self.model_name)
+        local_db.save_top30_per_query_id(model_name)
+
 
 if __name__ == "__main__":
     print("==== 메뉴 ====")
@@ -146,8 +153,9 @@ if __name__ == "__main__":
 
     menu = input("작업 번호를 선택하세요 (1/2/3): ").strip()
     model_input = input("Image Embedding Model Name (단일 모델명 또는 'ensemble'): ").strip()
-    if model_input not in config["model"] and model_input != "ensemble":
-        raise ValueError("Invalid embedding model name.")
+    if menu == "1":
+        if model_input not in config["model"] and model_input != "ensemble":
+            raise ValueError("Invalid embedding model name.")
 
     db_adapter = AisumDBAdapter(model_input, config)
 
@@ -156,7 +164,7 @@ if __name__ == "__main__":
         db_adapter.fill_missing_columns_from_aisum_db()
     elif menu == "2":
         local_db = db_adapter.repository.databases.get_db_by_name(model_input)
-        local_db.save_top30_per_query_id()
+        local_db.save_top30_per_query_id(model_name=model_input)
     elif menu == "3":
         db_adapter.copy_to_mysql_db()
     else:

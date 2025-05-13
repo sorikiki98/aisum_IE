@@ -330,7 +330,7 @@ class PGVectorDB:
         cur = conn.cursor()
         try:
             cur.execute("""
-                SELECT query_id, model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score
+                SELECT model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score
                 FROM search_results
                 ORDER BY id
             """)
@@ -363,7 +363,7 @@ class PGVectorDB:
             cur.close()
             conn.close()
 
-    def save_top30_per_query_id(self):
+    def save_top30_per_query_id(self, model_name=None):
         table_name = "search_results"
         top_table_name = "search_results_top30"
         config = self.config
@@ -388,9 +388,12 @@ class PGVectorDB:
             """)
             conn.commit()
             # query_id, model_name 목록 추출
-            cur.execute(f"SELECT DISTINCT model_name, query_id FROM {table_name}")
+            if model_name:
+                cur.execute(f"SELECT DISTINCT model_name, query_id FROM {table_name} WHERE model_name = %s", (model_name,))
+            else:
+                cur.execute(f"SELECT DISTINCT model_name, query_id FROM {table_name}")
             model_query_ids = cur.fetchall()  # [(model_name, query_id), ...]
-            for model_name, qid in tqdm(model_query_ids, desc="Saving top30 per (model_name, query_id)"):
+            for model_name_val, qid in tqdm(model_query_ids, desc="Saving top30 per (model_name, query_id)"):
                 # (model_name, query_id, p_key)별로 p_score가 가장 높은 row만 남기고, 그 중 상위 30개만 추출
                 cur.execute(f"""
                     INSERT INTO {top_table_name}
@@ -404,7 +407,7 @@ class PGVectorDB:
                     ) AS sub
                     ORDER BY p_score DESC
                     LIMIT 30
-                """, (model_name, qid))
+                """, (model_name_val, qid))
             conn.commit()
             print(f"[INFO] search_results_top30 테이블에 상위 30개 저장 완료(중복 제거)")
         except Exception as e:
