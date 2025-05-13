@@ -1,6 +1,7 @@
 import json
 from datetime import datetime
 import pymysql
+from tqdm import tqdm
 
 from dataset import QueryDataset
 from repository import ImageRetrievalRepository
@@ -26,25 +27,31 @@ class AisumDBAdapter:
         local_db = self.repository.databases.get_db_by_name(self.model_name)
         dataset = QueryDataset("aisum", self.config)
         detection_model = YOLO("yolo", self.config)
-        test_images, test_ids = dataset.prepare_query_images(0, len(dataset.query_image_files))
-        detection_result = detection_model(test_images, test_ids)
-        detection_images = detection_result["detection_images"]
-        detection_ids = detection_result["original_image_ids"]
-        detection_segment_ids = detection_result["image_segment_ids"]
-        detection_classes = detection_result["detection_classes"]
-
-        if self.model_name != "ensemble":
-            retrieval_result = self.repository.get_retrieval_result_by_name(self.model_name, detection_images,
-                                                                            detection_ids,
-                                                                            detection_classes)
-        else:
-            retrieval_result = self.repository.ensemble(detection_images, detection_ids, detection_classes)
+        batch_size = self.config["model"].get(self.model_name, {}).get("batch_size", 32)
+        total_images = len(dataset.query_image_files)
+        total_batches = total_images // batch_size + (1 if total_images % batch_size > 0 else 0)
 
         local_db.create_search_results_table()
-        for result_ids, p_scores, segment_id in zip(retrieval_result["result_ids"], retrieval_result["p_scores"],
-                                                    detection_segment_ids):
-            local_db.insert_search_results(segment_id, result_ids, p_scores)
-            print(f"[INFO] {segment_id} 저장 완료")
+        for batch_idx in tqdm(range(total_batches), desc=f"Processing {total_images} Images (batch size={batch_size})"):
+            test_images, test_ids = dataset.prepare_query_images(batch_idx, batch_size)
+            if not test_images:
+                continue
+            detection_result = detection_model(test_images, test_ids)
+            detection_images = detection_result["detection_images"]
+            detection_ids = detection_result["original_image_ids"]
+            detection_segment_ids = detection_result["image_segment_ids"]
+            detection_classes = detection_result["detection_classes"]
+
+            if self.model_name != "ensemble":
+                retrieval_result = self.repository.get_retrieval_result_by_name(self.model_name, detection_images,
+                                                                                detection_ids,
+                                                                                detection_classes)
+            else:
+                retrieval_result = self.repository.ensemble(detection_images, detection_ids, detection_classes)
+
+            for result_ids, p_scores, segment_id in zip(retrieval_result["result_ids"], retrieval_result["p_scores"],
+                                                        detection_segment_ids):
+                local_db.insert_search_results(segment_id, result_ids, p_scores)
 
         # 처리된 id 범위 출력
         id_range = local_db.get_search_results_id_range()
@@ -61,7 +68,7 @@ class AisumDBAdapter:
         config = self.config
         conn = connect_db(config)
         cur = conn.cursor()
-        for id, query_id, p_key in rows:
+        for id, query_id, p_key in tqdm(rows, desc="Filling missing columns"):
             # content_list
             cur.execute("SELECT pu_id, place_id, c_key FROM pm_test_content_list WHERE id=%s", (query_id,))
             content = cur.fetchone()
@@ -84,7 +91,6 @@ class AisumDBAdapter:
 
     def copy_to_mysql_db(self):
         local_db = self.repository.databases.get_db_by_name(self.model_name)
-        print("[INFO] PostgreSQL -> MySQL 데이터 복사 시작...")
 
         rows = local_db.get_search_results()
         print(f"[INFO] PostgreSQL에서 {len(rows)}개 row 조회 완료")
@@ -146,6 +152,8 @@ if __name__ == "__main__":
     if menu == "1":
         db_adapter.save_search_results_to_local_db()
         db_adapter.fill_missing_columns_from_aisum_db()
+        local_db = db_adapter.repository.databases.get_db_by_name(model_input)
+        local_db.save_top30_per_query_id()
     elif menu == "2":
         db_adapter.copy_to_mysql_db()
     else:
