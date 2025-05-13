@@ -174,22 +174,22 @@ class PGVectorDB:
             if query_cat == "":
                 query = select_clause + "ORDER BY distance ASC LIMIT 10;"
                 params = (query_embedding.tolist(),)
-                label = f"🔎 [전체 검색] - Query #{idx + 1}: {query_id}"
+                # label = f"🔎 [전체 검색] - Query #{idx + 1}: {query_id}"
             else:
                 query = select_clause + "WHERE category = %s ORDER BY distance ASC LIMIT 10;"
                 params = (query_embedding.tolist(), query_cat)
-                label = f"🔍 [카테고리 필터 검색] - Query #{idx + 1}: {query_id}"
+                # label = f"🔍 [카테고리 필터 검색] - Query #{idx + 1}: {query_id}"
 
             start_time = time.perf_counter()
             cur.execute(query, params)
             results = cur.fetchall()
             end_time = time.perf_counter()
-
+            '''
             print(f"\n{label} Top 10 (by distance)")
             for i, (id_, cat, dist) in enumerate(results):
                 print(f"{i + 1}. ID: {id_}, Cat: {cat}, Distance: {dist:.6f}")
             print(f"⏱️ 검색 소요 시간: {end_time - start_time:.4f}초")
-
+            '''
             """
             cur.execute("EXPLAIN ANALYZE " + query, params)
             plan = cur.fetchall()

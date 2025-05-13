@@ -48,6 +48,7 @@ class AisumDBAdapter:
                                                                                 detection_classes)
             else:
                 retrieval_result = self.repository.ensemble(detection_images, detection_ids, detection_classes)
+            self.repository.clear_retrieval_results()
 
             for result_ids, p_scores, segment_id in zip(retrieval_result["result_ids"], retrieval_result["p_scores"],
                                                         detection_segment_ids):
