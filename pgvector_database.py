@@ -16,27 +16,28 @@ class PGVectorDB:
     def __init__(self, image_embedding_model_name, config):
         conn = connect_db(config)
 
-        model_config = config["model"][image_embedding_model_name]
-        table_name = f"image_embeddings_{image_embedding_model_name}"
-        num_dimensions = model_config["num_dimension"]
+        if image_embedding_model_name in config["model"]:
+            model_config = config["model"][image_embedding_model_name]
+            table_name = f"image_embeddings_{image_embedding_model_name}"
+            num_dimensions = model_config["num_dimension"]
 
-        cur = conn.cursor()
-        try:
-            cur.execute(f"""
-                CREATE TABLE IF NOT EXISTS {table_name} (
-                    id VARCHAR(255) PRIMARY KEY,
-                    code VARCHAR(255),
-                    embedding VECTOR({num_dimensions}),
-                    category VARCHAR(500)
-                );
-            """)
-            conn.commit()
-        except Exception as e:
-            print(f"Error creating table: {e}")
-            conn.rollback()
-        finally:
-            cur.close()
-            conn.close()
+            cur = conn.cursor()
+            try:
+                cur.execute(f"""
+                    CREATE TABLE IF NOT EXISTS {table_name} (
+                        id VARCHAR(255) PRIMARY KEY,
+                        code VARCHAR(255),
+                        embedding VECTOR({num_dimensions}),
+                        category VARCHAR(500)
+                    );
+                """)
+                conn.commit()
+            except Exception as e:
+                print(f"Error creating table: {e}")
+                conn.rollback()
+            finally:
+                cur.close()
+                conn.close()
 
         self.image_embedding_model_name = image_embedding_model_name
         self.config = config

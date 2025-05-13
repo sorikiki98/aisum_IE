@@ -144,7 +144,7 @@ if __name__ == "__main__":
 
     menu = input("작업 번호를 선택하세요 (1/2): ").strip()
     model_input = input("Image Embedding Model Name (단일 모델명 또는 'ensemble'): ").strip()
-    if model_input not in config["model"]:
+    if model_input not in config["model"] and model_input != "ensemble":
         raise ValueError("Invalid embedding model name.")
 
     db_adapter = AisumDBAdapter(model_input, config)

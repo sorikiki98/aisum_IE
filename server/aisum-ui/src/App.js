@@ -43,7 +43,7 @@ function App() {
     });
   };
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     if (!selectedFile || (selectedModels.length === 0 && !useEnsemble)) return;
 
     const results = {};
@@ -219,13 +219,19 @@ function App() {
       setResultsByModel(results);
 
       if (!useEnsemble) return;
+      console.log("useEnsemble", useEnsemble)
 
       const formData = new FormData();
       formData.append("file", selectedFile);
-      formData.append("embedding_model_name", "ensemble");
+      formData.append("model_name", "ensemble");
+      formData.append("bbox_xmin", xmin);
+      formData.append("bbox_ymin", ymin);
+      formData.append("bbox_xmax", xmax);
+      formData.append("bbox_ymax", ymax);
+      formData.append("category", category);
 
       return axios
-        .post("http://127.0.0.1:8000/search/", formData)
+        .post("http://127.0.0.1:8000/search_bbox/", formData)
         .then((response) => {
           const result = response.data;
           if (!result) throw new Error("앙상블 결과를 받지 못했습니다.");
