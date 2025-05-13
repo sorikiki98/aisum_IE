@@ -2,6 +2,7 @@ from datetime import datetime
 
 import psycopg2
 import time
+from tqdm import tqdm
 
 
 def connect_db(config):
@@ -248,6 +249,9 @@ class PGVectorDB:
             except Exception:
                 return "Object-0"
 
+        def get_base_query_id(segment_id):
+            return str(segment_id).split('_', 1)[0]
+
         def get_p_key(result_id):
             parts = str(result_id).split('_')
             if len(parts) > 1:
@@ -262,12 +266,13 @@ class PGVectorDB:
                 now = datetime.now()
                 ymdh = int(now.strftime('%Y%m%d%H'))
                 p_key = get_p_key(result_id)
+                query_id_db = get_base_query_id(segment_id)
                 query = f"""
                     INSERT INTO {table_name} (ymdh, model_name, query_id, p_key, p_category, p_score)
                     VALUES (%s, %s, %s, %s, %s, %s)
                 """
                 cur.execute(query,
-                            (ymdh, self.image_embedding_model_name, str(segment_id), p_key, p_category,
+                            (ymdh, self.image_embedding_model_name, query_id_db, p_key, p_category,
                              float(similarity)))
             conn.commit()
         except Exception as e:
@@ -353,6 +358,52 @@ class PGVectorDB:
         except Exception as e:
             print(f"Error fetching id range: {e}")
             return None
+        finally:
+            cur.close()
+            conn.close()
+
+    def save_top30_per_query_id(self):
+        table_name = "search_results"
+        top_table_name = "search_results_top30"
+        config = self.config
+        conn = connect_db(config)
+        cur = conn.cursor()
+        try:
+            # 1. search_results_top30 테이블 생성 (id SERIAL PRIMARY KEY, 나머지 컬럼 동일)
+            cur.execute(f"""
+                CREATE TABLE IF NOT EXISTS {top_table_name} (
+                    id SERIAL PRIMARY KEY,
+                    ymdh INTEGER,
+                    model_name VARCHAR(30),
+                    query_id VARCHAR(128),
+                    pu_id INTEGER,
+                    place_id INTEGER,
+                    c_key CHAR(32),
+                    au_id INTEGER,
+                    p_key VARCHAR(128),
+                    p_category VARCHAR(64),
+                    p_score FLOAT
+                );
+            """)
+            conn.commit()
+            # query_id 목록 추출
+            cur.execute(f"SELECT DISTINCT query_id FROM {table_name}")
+            query_ids = [row[0] for row in cur.fetchall()]
+            for qid in tqdm(query_ids, desc="Saving top30 per query_id"):
+                cur.execute(f"""
+                    INSERT INTO {top_table_name}
+                    (ymdh, model_name, query_id, pu_id, place_id, c_key, au_id, p_key, p_category, p_score)
+                    SELECT ymdh, model_name, query_id, pu_id, place_id, c_key, au_id, p_key, p_category, p_score
+                    FROM {table_name}
+                    WHERE query_id = %s
+                    ORDER BY p_score DESC
+                    LIMIT 30
+                """, (qid,))
+            conn.commit()
+            print(f"[INFO] search_results_top30 테이블에 query_id별 상위 30개 추가 저장 완료 (id는 자동 증가)")
+        except Exception as e:
+            print(f"Error saving top30 per query_id: {e}")
+            conn.rollback()
         finally:
             cur.close()
             conn.close()
