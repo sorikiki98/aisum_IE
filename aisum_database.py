@@ -137,12 +137,13 @@ class AisumDBAdapter:
 if __name__ == "__main__":
     print("==== 메뉴 ====")
     print("1. 검색결과 DB 저장 및 컬럼 채우기")
-    print("2. AISUM DB에 데이터 저장")
+    print("2. top30 추출하여 저장")
+    print("3. AISUM DB에 데이터 저장")
 
     with open("config.json", "r", encoding="utf-8") as f:
         config = json.load(f)
 
-    menu = input("작업 번호를 선택하세요 (1/2): ").strip()
+    menu = input("작업 번호를 선택하세요 (1/2/3): ").strip()
     model_input = input("Image Embedding Model Name (단일 모델명 또는 'ensemble'): ").strip()
     if model_input not in config["model"] and model_input != "ensemble":
         raise ValueError("Invalid embedding model name.")
@@ -152,9 +153,10 @@ if __name__ == "__main__":
     if menu == "1":
         db_adapter.save_search_results_to_local_db()
         db_adapter.fill_missing_columns_from_aisum_db()
+    elif menu == "2":
         local_db = db_adapter.repository.databases.get_db_by_name(model_input)
         local_db.save_top30_per_query_id()
-    elif menu == "2":
+    elif menu == "3":
         db_adapter.copy_to_mysql_db()
     else:
         print("[ERROR] 올바른 메뉴 번호를 입력하세요.")
