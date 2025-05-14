@@ -268,12 +268,13 @@ class PGVectorDB:
                 ymdh = int(now.strftime('%Y%m%d%H'))
                 p_key = get_p_key(result_id)
                 query_id_db = get_base_query_id(segment_id)
+                model_name = self.image_embedding_model_name + "_eseltree"
                 query = f"""
                     INSERT INTO {table_name} (ymdh, model_name, query_id, p_key, p_category, p_score)
                     VALUES (%s, %s, %s, %s, %s, %s)
                 """
                 cur.execute(query,
-                            (ymdh, self.image_embedding_model_name, query_id_db, p_key, p_category,
+                            (ymdh, model_name, query_id_db, p_key, p_category,
                              float(similarity)))
             conn.commit()
         except Exception as e:
@@ -413,6 +414,33 @@ class PGVectorDB:
         except Exception as e:
             print(f"Error saving top30 per query_id: {e}")
             conn.rollback()
+        finally:
+            cur.close()
+            conn.close()
+
+    def get_search_results_30(self, model_name=None):
+        config = self.config
+        conn = connect_db(config)
+        cur = conn.cursor()
+        try:
+            if model_name:
+                cur.execute("""
+                    SELECT model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score
+                    FROM search_results_top30
+                    WHERE model_name = %s
+                    ORDER BY id
+                """, (model_name,))
+            else:
+                cur.execute("""
+                    SELECT model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score
+                    FROM search_results_top30
+                    ORDER BY id
+                """)
+            rows = cur.fetchall()
+            return rows
+        except Exception as e:
+            print(f"Error fetching search_results_top30: {e}")
+            return None
         finally:
             cur.close()
             conn.close()
