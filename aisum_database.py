@@ -27,7 +27,7 @@ class AisumDBAdapter:
         local_db = self.repository.databases.get_db_by_name(self.model_name)
         dataset = QueryDataset("aisum", self.config)
         detection_model = YOLO("yolo", self.config)
-        batch_size = self.config["model"].get(self.model_name, {}).get("batch_size", 32)
+        batch_size = self.config["model"].get(self.model_name, {}).get("batch_size", 4)
         total_images = len(dataset.query_image_files)
         total_batches = total_images // batch_size + (1 if total_images % batch_size > 0 else 0)
 
