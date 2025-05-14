@@ -93,8 +93,9 @@ class AisumDBAdapter:
     def copy_to_mysql_db(self):
         local_db = self.repository.databases.get_db_by_name(self.model_name)
 
-        rows = local_db.get_search_results()
-        print(f"[INFO] PostgreSQL에서 {len(rows)}개 row 조회 완료")
+        # Fetch only top30 results for the specified model_name
+        rows = local_db.get_search_results_30(self.model_name)
+        print(f"[INFO] PostgreSQL에서 {len(rows) if rows else 0}개 row(top30) 조회 완료")
 
         config = self.config
         conn = connect_db(config)
@@ -103,21 +104,18 @@ class AisumDBAdapter:
         try:
             now = datetime.now()
             ymdh = int(now.strftime('%Y%m%d%H'))
-
-            for row in rows:
+        
+            for row in tqdm(rows or [], desc="MySQL Insert (top30)"):
                 model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score = row
 
-                # model_name에 '_eseltree' 추가
-                custom_model_name = model_name + "_eseltree"
                 query = """
                     INSERT INTO pm_test_2nd_content_list 
                     (ymdh, model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 cur.execute(query, (
                     ymdh,
-                    #model_name,
-                    custom_model_name,
+                    model_name,
                     pu_id,
                     place_id,
                     c_key,
@@ -128,7 +126,8 @@ class AisumDBAdapter:
                 ))
 
             conn.commit()
-            print(f"[INFO] MySQL에 {len(rows)}개 row 저장 완료")
+
+            print(f"[INFO] MySQL에 {len(rows) if rows else 0}개 row(top30) 저장 완료")
 
         except Exception as e:
             print(f"[ERROR] MySQL 저장 중 오류 발생: {e}")
