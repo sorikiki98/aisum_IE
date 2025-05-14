@@ -151,7 +151,7 @@
   },
   "ensemble": {
     "first": "dreamsim",
-    "second": "imagebind",
-    "third": "unicom"
+    "second": "marqo_ecommerce_l",
+    "third": "marqo_fashionsiglip"
   }
 }

@@ -10,7 +10,7 @@ function App() {
   const [category, setCategory] = useState("");
   const [resultsByModel, setResultsByModel] = useState({});
   const fileInputRef = useRef(null);
-  const modelOptions = ["dreamsim", "imagebind", "unicom", "laion_clip"];
+  const modelOptions = ["dreamsim", "marqo_fashionsiglip", "marqo_ecommerce_l"];
 
   const imageRef = useRef(null);
   const [imageLoaded, setImageLoaded] = useState(false);
