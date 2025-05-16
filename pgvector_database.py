@@ -268,7 +268,7 @@ class PGVectorDB:
                 ymdh = int(now.strftime('%Y%m%d%H'))
                 p_key = get_p_key(result_id)
                 query_id_db = get_base_query_id(segment_id)
-                model_name = self.image_embedding_model_name + "_eseltree"
+                model_name = self.image_embedding_model_name
                 query = f"""
                     INSERT INTO {table_name} (ymdh, model_name, query_id, p_key, p_category, p_score)
                     VALUES (%s, %s, %s, %s, %s, %s)
