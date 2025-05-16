@@ -55,6 +55,13 @@ if __name__ == "__main__":
         batch_detection_images = batch_detection_result["detection_images"]
         batch_image_segment_ids = batch_detection_result["image_segment_ids"]
         batch_original_image_ids = batch_detection_result["original_image_ids"]
+
+        if not batch_detection_images:
+            print(f"Batch {batch_idx}: No detection images, skipping.")
+            continue
+
         batch_embeddings_ndarray = embedding_model(batch_detection_images)
-        database.insert_image_embeddings_into_postgres(batch_image_segment_ids, batch_original_image_ids,
-                                                       batch_embeddings_ndarray, batch_detection_classes)
+        database.insert_image_embeddings_into_postgres(
+            batch_image_segment_ids, batch_original_image_ids,
+            batch_embeddings_ndarray, batch_detection_classes
+        )
