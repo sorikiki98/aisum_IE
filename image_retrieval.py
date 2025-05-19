@@ -46,7 +46,7 @@ class ImageRetrieval(nn.Module):
                 file_path = list(self.index_image_folder.rglob(f"{original_img_id}.*"))[0]
                 save_name = f"top_{idx + 1}_{similarity}.jpg"
                 save_path = os.path.join(str(retrieved_image_folder), save_name)
-
+                '''
                 try:
                     image = Image.open(file_path).convert("RGB")
                     image.save(save_path)
@@ -54,8 +54,10 @@ class ImageRetrieval(nn.Module):
                     batch_paths.append(relative_path)
                 except Exception as e:
                     print(f"[ERROR] Failed to process image at {file_path}: {e}")
+                '''
 
-            retrieved_image_file_paths.append(batch_paths)
+            # retrieved_image_file_paths.append(batch_paths)
+            retrieved_image_file_paths = []
         return {
             "result_ids": result_ids,
             "result_local_paths": retrieved_image_file_paths,
