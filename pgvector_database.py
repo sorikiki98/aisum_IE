@@ -227,7 +227,9 @@ class PGVectorDB:
                 au_id INTEGER,
                 p_key VARCHAR(128),
                 p_category VARCHAR(64),
-                p_score FLOAT
+                p_score FLOAT,
+                category VARCHAR(128),
+                bbox VARCHAR(128)
             );
         """)
         conn.commit()
