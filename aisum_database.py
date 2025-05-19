@@ -109,12 +109,12 @@ class AisumDBAdapter:
             ymdh = int(now.strftime('%Y%m%d%H'))
 
             for row in tqdm(rows or [], desc="MySQL Insert (top30)"):
-                model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score = row
+                model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score, category, bbox = row
 
                 query = """
                     INSERT INTO pm_test_2nd_content_list 
-                    (ymdh, model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    (ymdh, model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score, category, box)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 cur.execute(query, (
                     ymdh,
@@ -125,7 +125,9 @@ class AisumDBAdapter:
                     au_id,
                     p_key,
                     p_category,
-                    float(p_score) if p_score is not None else None
+                    float(p_score) if p_score is not None else None,
+                    category,
+                    bbox
                 ))
 
             conn.commit()
