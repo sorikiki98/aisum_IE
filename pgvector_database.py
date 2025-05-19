@@ -386,7 +386,9 @@ class PGVectorDB:
                     au_id INTEGER,
                     p_key VARCHAR(128),
                     p_category VARCHAR(64),
-                    p_score FLOAT
+                    p_score FLOAT,
+                    category VARCHAR(128),
+                    bbox VARCHAR(128)
                 );
             """)
             conn.commit()
@@ -401,8 +403,8 @@ class PGVectorDB:
                 # (model_name, query_id, p_key)별로 p_score가 가장 높은 row만 남기고, 그 중 상위 30개만 추출
                 cur.execute(f"""
                     INSERT INTO {top_table_name}
-                    (ymdh, model_name, query_id, pu_id, place_id, c_key, au_id, p_key, p_category, p_score)
-                    SELECT ymdh, model_name, query_id, pu_id, place_id, c_key, au_id, p_key, p_category, p_score
+                    (ymdh, model_name, query_id, pu_id, place_id, c_key, au_id, p_key, p_category, p_score, category, bbox)
+                    SELECT ymdh, model_name, query_id, pu_id, place_id, c_key, au_id, p_key, p_category, p_score, category, bbox
                     FROM (
                         SELECT DISTINCT ON (model_name, query_id, p_key) *
                         FROM {table_name}
@@ -428,14 +430,14 @@ class PGVectorDB:
         try:
             if model_name:
                 cur.execute("""
-                    SELECT model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score
+                    SELECT model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score, category, bbox
                     FROM search_results_top30
                     WHERE model_name = %s
                     ORDER BY id
                 """, (model_name,))
             else:
                 cur.execute("""
-                    SELECT model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score
+                    SELECT model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score, category, bbox
                     FROM search_results_top30
                     ORDER BY id
                 """)
