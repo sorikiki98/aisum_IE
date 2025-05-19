@@ -41,6 +41,7 @@ class AisumDBAdapter:
             detection_ids = detection_result["original_image_ids"]
             detection_segment_ids = detection_result["image_segment_ids"]
             detection_classes = detection_result["detection_classes"]
+            detection_coordinates = detection_result["detection_coordinates"]
 
             if self.model_name != "ensemble":
                 retrieval_result = self.repository.get_retrieval_result_by_name(self.model_name, detection_images,
@@ -50,9 +51,11 @@ class AisumDBAdapter:
                 retrieval_result = self.repository.ensemble(detection_images, detection_ids, detection_classes)
             self.repository.clear_retrieval_results()
 
-            for result_ids, p_scores, segment_id in zip(retrieval_result["result_ids"], retrieval_result["p_scores"],
-                                                        detection_segment_ids):
-                local_db.insert_search_results(segment_id, result_ids, p_scores)
+            for result_ids, p_scores, segment_id, category, bbox in zip(retrieval_result["result_ids"],
+                                                                        retrieval_result["p_scores"],
+                                                                        detection_segment_ids, detection_classes,
+                                                                        detection_coordinates):
+                local_db.insert_search_results(segment_id, result_ids, p_scores, category, bbox)
 
         # 처리된 id 범위 출력
         id_range = local_db.get_search_results_id_range()
@@ -104,7 +107,7 @@ class AisumDBAdapter:
         try:
             now = datetime.now()
             ymdh = int(now.strftime('%Y%m%d%H'))
-        
+
             for row in tqdm(rows or [], desc="MySQL Insert (top30)"):
                 model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score = row
 
