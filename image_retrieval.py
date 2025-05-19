@@ -46,6 +46,7 @@ class ImageRetrieval(nn.Module):
                 file_path = list(self.index_image_folder.rglob(f"{original_img_id}.*"))[0]
                 save_name = f"top_{idx + 1}_{similarity}.jpg"
                 save_path = os.path.join(str(retrieved_image_folder), save_name)
+
                 '''
                 try:
                     image = Image.open(file_path).convert("RGB")
