@@ -48,7 +48,7 @@ class ImageRetrieval(nn.Module):
                 save_path = os.path.join(str(retrieved_image_folder), save_name)
 
                 try:
-                    image = Image.open(file_path)
+                    image = Image.open(file_path).convert("RGB")
                     image.save(save_path)
                     relative_path = f"{retrieved_image_folder}/{save_name}"
                     batch_paths.append(relative_path)

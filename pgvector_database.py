@@ -234,7 +234,7 @@ class PGVectorDB:
         cur.close()
         conn.close()
 
-    def insert_search_results(self, segment_id, result_ids, similarities):
+    def insert_search_results(self, segment_id, result_ids, similarities, category, bbox):
         table_name = "search_results"
         config = self.config
         conn = connect_db(config)
@@ -270,11 +270,11 @@ class PGVectorDB:
                 query_id_db = get_base_query_id(segment_id)
                 model_name = self.image_embedding_model_name
                 query = f"""
-                    INSERT INTO {table_name} (ymdh, model_name, query_id, p_key, p_category, p_score)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    INSERT INTO {table_name} (ymdh, model_name, query_id, category, bbox, p_key, p_category, p_score)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 cur.execute(query,
-                            (ymdh, model_name, query_id_db, p_key, p_category,
+                            (ymdh, model_name, query_id_db, category, str(bbox), p_key, p_category,
                              float(similarity)))
             conn.commit()
         except Exception as e:
@@ -390,7 +390,8 @@ class PGVectorDB:
             conn.commit()
             # query_id, model_name 목록 추출
             if model_name:
-                cur.execute(f"SELECT DISTINCT model_name, query_id FROM {table_name} WHERE model_name = %s", (model_name,))
+                cur.execute(f"SELECT DISTINCT model_name, query_id FROM {table_name} WHERE model_name = %s",
+                            (model_name,))
             else:
                 cur.execute(f"SELECT DISTINCT model_name, query_id FROM {table_name}")
             model_query_ids = cur.fetchall()  # [(model_name, query_id), ...]
