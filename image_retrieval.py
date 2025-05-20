@@ -43,9 +43,9 @@ class ImageRetrieval(nn.Module):
                     zip(result_id, result_cat, result_similarity)):  # [10개]
                 original_img_id = img_id.split("_")[1:-1]
                 original_img_id = "_".join(original_img_id)
-                file_path = list(self.index_image_folder.rglob(f"{original_img_id}.*"))[0]
-                save_name = f"top_{idx + 1}_{similarity}.jpg"
-                save_path = os.path.join(str(retrieved_image_folder), save_name)
+                #file_path = list(self.index_image_folder.rglob(f"{original_img_id}.*"))[0]
+                #save_name = f"top_{idx + 1}_{similarity}.jpg"
+                #save_path = os.path.join(str(retrieved_image_folder), save_name)
 
                 '''
                 try:
