@@ -10,6 +10,9 @@ class YOLO(ObjectDetectionModel):
         super().__init__(model_name, config, indexing)
         self._model = backbone(self.model_cfg["weights"])
         self._num_objects = self.model_cfg["num_objects"]
+        
+        self._model.eval()
+        self._model.to(self.device)
 
     def forward(self, pil_images, img_ids):
         if not isinstance(pil_images, list):
@@ -18,7 +21,7 @@ class YOLO(ObjectDetectionModel):
             img_ids = np.array([img_ids])
         detection_results = []
         for img in pil_images:
-            pred = self.model.predict(img, verbose=False)[0]
+            pred = self.model.predict(img, verbose=False, device=self.device)[0]
             result = self._get_candidates(pred)
             detection_results.append(result)
 
