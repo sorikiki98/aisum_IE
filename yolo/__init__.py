@@ -62,7 +62,7 @@ class YOLO(ObjectDetectionModel):
             dx = cx_bbox - cx_orig
             dy = cy_bbox - cy_orig
             distance = (dx ** 2 + dy ** 2) ** 0.5
-            distance_max = (cx_bbox ** 2 + cy_bbox ** 2) ** 0.5
+            distance_max = (cx_orig ** 2 + cy_orig ** 2) ** 0.5
             centrality = 1 - (distance / distance_max) ** 3
             candidates.append({
                 "class": pred.names[int(cls_id)],
