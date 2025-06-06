@@ -60,9 +60,9 @@ class AisumDBAdapter:
         # 처리된 id 범위 출력
         id_range = local_db.get_search_results_id_range()
         if id_range:
-            print(f"[INFO] 모든 결과 저장 완료 (id: {id_range[0]} - {id_range[1]})")
+            print(f"[INFO] All results saved (id: {id_range[0]} - {id_range[1]})")
         else:
-            print("[INFO] search_results 테이블에 데이터가 없습니다.")
+            print("[INFO] No data in search_results table.")
 
     def fill_missing_columns_from_aisum_db(self):
         local_db = self.repository.databases.get_db_by_name(self.model_name)
@@ -89,16 +89,16 @@ class AisumDBAdapter:
         # 처리된 id 범위 출력
         id_range = local_db.get_search_results_id_range()
         if id_range:
-            print(f"[INFO] search_results 컬럼 채우기 완료 (id: {id_range[0]} - {id_range[1]})")
+            print(f"[INFO] Finished filling search_results columns (id: {id_range[0]} - {id_range[1]})")
         else:
-            print("[INFO] search_results 테이블에 데이터가 없습니다.")
+            print("[INFO] No data in search_results table.")
 
     def copy_to_mysql_db(self):
         local_db = self.repository.databases.get_db_by_name(self.model_name)
 
         # Fetch only top30 results for the specified model_name
         rows = local_db.get_search_results_30(self.model_name)
-        print(f"[INFO] PostgreSQL에서 {len(rows) if rows else 0}개 row(top30) 조회 완료")
+        print(f"[INFO] Retrieved {len(rows) if rows else 0} rows (top30) from PostgreSQL")
 
         config = self.config
         conn = connect_db(config)
@@ -132,10 +132,10 @@ class AisumDBAdapter:
 
             conn.commit()
 
-            print(f"[INFO] MySQL에 {len(rows) if rows else 0}개 row(top30) 저장 완료")
+            print(f"[INFO] Saved {len(rows) if rows else 0} rows (top30) to MySQL")
 
         except Exception as e:
-            print(f"[ERROR] MySQL 저장 중 오류 발생: {e}")
+            print(f"[ERROR] Error occurred while saving to MySQL: {e}")
             conn.rollback()
         finally:
             cur.close()
@@ -147,16 +147,17 @@ class AisumDBAdapter:
 
 
 if __name__ == "__main__":
-    print("==== 메뉴 ====")
-    print("1. 검색결과 DB 저장 및 컬럼 채우기")
-    print("2. top30 추출하여 저장")
-    print("3. AISUM DB에 데이터 저장")
+    print("========= MENU =========")
+    print("1. Save search results to DB and fill columns")
+    print("2. Extract and save top30")
+    print("3. Save data to AISUM DB")
+    print("=========================")
 
     with open("config.json", "r", encoding="utf-8") as f:
         config = json.load(f)
 
-    menu = input("작업 번호를 선택하세요 (1/2/3): ").strip()
-    model_input = input("Image Embedding Model Name (단일 모델명 또는 'ensemble'): ").strip()
+    menu = input("Select task number (1/2/3): ").strip()
+    model_input = input("Image Embedding Model Name (single model name or 'ensemble'): ").strip()
     if menu == "1":
         if model_input not in config["model"] and model_input != "ensemble":
             raise ValueError("Invalid embedding model name.")
@@ -172,4 +173,4 @@ if __name__ == "__main__":
     elif menu == "3":
         db_adapter.copy_to_mysql_db()
     else:
-        print("[ERROR] 올바른 메뉴 번호를 입력하세요.")
+        print("[ERROR] Please enter a valid menu number.")
