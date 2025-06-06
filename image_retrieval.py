@@ -63,5 +63,5 @@ class ImageRetrieval(nn.Module):
             "result_ids": result_ids,
             "result_local_paths": retrieved_image_file_paths,
             "result_categories": result_cats,
-            "p_scores": result_similarities
+            "similarities": result_similarities
         }

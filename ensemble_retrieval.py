@@ -33,7 +33,7 @@ class Ensemble(nn.Module):
                 result_ids = result["result_ids"][obj_i]
                 # result_paths = result["result_local_paths"][obj_i]
                 result_cats = result["result_categories"][obj_i]
-                p_scores = result["p_scores"][obj_i]
+                similarities = result["similarities"][obj_i]
                 '''
                 for rank, (img_id, img_path, cat, p_score) in enumerate(
                         zip(result_ids, result_paths, result_cats, p_scores)):
@@ -43,9 +43,9 @@ class Ensemble(nn.Module):
                     if img_id not in image_cats:
                         image_cats[img_id] = cat
                 '''
-                for rank, (img_id, cat, p_score) in enumerate(
-                        zip(result_ids, result_cats, p_scores)):
-                    image_scores[img_id] += p_score * model_weight
+                for rank, (img_id, cat, similarity) in enumerate(
+                        zip(result_ids, result_cats, similarities)):
+                    image_scores[img_id] += similarity * model_weight
                     if img_id not in image_cats:
                         image_cats[img_id] = cat
             # 점수 기준 상위 30개 이미지 선정
@@ -62,16 +62,16 @@ class Ensemble(nn.Module):
         result_ids = []
         retrieved_image_file_paths = []
         retrieved_categories = []
-        p_scores = []
+        similarities = []
 
         for top_images in top_images_per_obj:  # 하나의 객체
             result_ids_per_obj = []
             retrieved_image_file_paths_per_obj = []
             retrieved_categories_per_obj = []
-            p_scores_per_obj = []
+            similarities_per_obj = []
             for idx, (img_id, score) in enumerate(top_images):  # 하나의 이미지
                 result_ids_per_obj.append(img_id)
-                p_scores_per_obj.append(score)
+                similarities_per_obj.append(score)
                 cat = image_cats.get(img_id)
                 retrieved_categories_per_obj.append(cat)
 
@@ -92,7 +92,7 @@ class Ensemble(nn.Module):
             result_ids.append(result_ids_per_obj)
             # retrieved_image_file_paths.append(retrieved_image_file_paths_per_obj)
             retrieved_categories.append(retrieved_categories_per_obj)
-            p_scores.append(p_scores_per_obj)
+            similarities.append(similarities_per_obj)
 
             retrieved_image_file_paths = []
 
@@ -100,5 +100,5 @@ class Ensemble(nn.Module):
             "result_ids": result_ids,
             "result_local_paths": retrieved_image_file_paths,
             "result_categories": retrieved_categories,
-            "p_scores": p_scores
+            "similarities": similarities
         }
