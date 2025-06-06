@@ -27,7 +27,7 @@ class AisumDBAdapter:
         local_db = self.repository.databases.get_db_by_name(self.model_name)
         dataset = QueryDataset("aisum", self.config)
         detection_model = YOLO("yolo", self.config)
-        batch_size = self.config["model"].get(self.model_name, {}).get("batch_size", 4)
+        batch_size = self.config["model"].get(self.model_name, {}).get("batch_size", 8)
         total_images = len(dataset.query_image_files)
         total_batches = total_images // batch_size + (1 if total_images % batch_size > 0 else 0)
 
@@ -53,11 +53,13 @@ class AisumDBAdapter:
                 retrieval_result = self.repository.ensemble(detection_images, detection_ids, detection_classes)
             self.repository.clear_retrieval_results()
 
-            for result_ids, p_scores, segment_id, category, bbox, bbox_size, bbox_centrality in zip(retrieval_result["result_ids"],
-                                                                        retrieval_result["p_scores"],
-                                                                        detection_segment_ids, detection_classes,
-                                                                        detection_coordinates, detection_sizes, detection_centrality):
-                local_db.insert_search_results(segment_id, result_ids, p_scores, category, bbox, bbox_size, bbox_centrality)
+            for result_ids, p_scores, segment_id, category, bbox, bbox_size, bbox_centrality in zip(
+                    retrieval_result["result_ids"],
+                    retrieval_result["p_scores"],
+                    detection_segment_ids, detection_classes,
+                    detection_coordinates, detection_sizes, detection_centrality):
+                local_db.insert_search_results(segment_id, result_ids, p_scores, category, bbox, bbox_size,
+                                               bbox_centrality)
 
         # 처리된 id 범위 출력
         id_range = local_db.get_search_results_id_range()

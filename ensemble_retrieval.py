@@ -10,16 +10,6 @@ class Ensemble(nn.Module):
     def __init__(self, retrieval_results, config):
         super().__init__()
         self.retrieval_results = retrieval_results
-        model_weights = dict()
-        for i, model_name in enumerate(retrieval_results.keys()):
-            if i == 0:
-                model_weights[model_name] = [x * 0.5 for x in range(10, 0, -1)]
-            elif i == 1:
-                model_weights[model_name] = [x * 0.5 * 0.75 for x in range(10, 0, -1)]
-            else:
-                model_weights[model_name] = [x * 0.5 * 0.5 for x in range(10, 0, -1)]
-        self.model_weights = model_weights
-
         self.retrieved_image_folder = config["data"]["retrieved_image_folder_path"]
         self.index_image_folder = Path(config["data"]["index_image_folder_path"])
         self.model_name = "ensemble"
@@ -35,22 +25,31 @@ class Ensemble(nn.Module):
             # 이미지별 점수 집계
             image_scores = defaultdict(float)
 
-            for model_name, result in self.retrieval_results.items():
+            for i, (model_name, result) in enumerate(self.retrieval_results.items()):
+                if i == 0:
+                    model_weight = 0.65
+                else:
+                    model_weight = 0.35
                 result_ids = result["result_ids"][obj_i]
-                result_paths = result["result_local_paths"][obj_i]
+                # result_paths = result["result_local_paths"][obj_i]
                 result_cats = result["result_categories"][obj_i]
-                weights = self.model_weights[model_name]
-
-                for rank, (img_id, img_path, cat) in enumerate(zip(result_ids, result_paths, result_cats)):
-                    if rank < len(weights):  # top 10까지만 점수 부여
-                        image_scores[img_id] += weights[rank]
-                        if img_id not in image_paths:
-                            image_paths[img_id] = img_path
-                        if img_id not in image_cats:
-                            image_cats[img_id] = cat
-
-            # 점수 기준 상위 10개 이미지 선정
-            top_images = sorted(image_scores.items(), key=lambda x: x[1], reverse=True)[:10]
+                p_scores = result["p_scores"][obj_i]
+                '''
+                for rank, (img_id, img_path, cat, p_score) in enumerate(
+                        zip(result_ids, result_paths, result_cats, p_scores)):
+                    image_scores[img_id] += p_score * model_weight
+                    if img_id not in image_paths:
+                        image_paths[img_id] = img_path
+                    if img_id not in image_cats:
+                        image_cats[img_id] = cat
+                '''
+                for rank, (img_id, cat, p_score) in enumerate(
+                        zip(result_ids, result_cats, p_scores)):
+                    image_scores[img_id] += p_score * model_weight
+                    if img_id not in image_cats:
+                        image_cats[img_id] = cat
+            # 점수 기준 상위 30개 이미지 선정
+            top_images = sorted(image_scores.items(), key=lambda x: x[1], reverse=True)[:30]
             top_images_per_obj.append(top_images)
 
         # 앙상블 결과 이미지 저장
@@ -72,10 +71,11 @@ class Ensemble(nn.Module):
             p_scores_per_obj = []
             for idx, (img_id, score) in enumerate(top_images):  # 하나의 이미지
                 result_ids_per_obj.append(img_id)
-                p_scores_per_obj.append(float(score)/5.0)
+                p_scores_per_obj.append(score)
                 cat = image_cats.get(img_id)
                 retrieved_categories_per_obj.append(cat)
 
+                '''
                 img_path = image_paths.get(img_id)
                 if img_path and os.path.exists(img_path):
                     save_name = f"top_{idx + 1}_{score}.jpg"
@@ -87,11 +87,14 @@ class Ensemble(nn.Module):
                 else:
                     print(f"Image not found for ID: {img_id}")
                     retrieved_image_file_paths_per_obj.append(None)
+                '''
 
             result_ids.append(result_ids_per_obj)
-            retrieved_image_file_paths.append(retrieved_image_file_paths_per_obj)
+            # retrieved_image_file_paths.append(retrieved_image_file_paths_per_obj)
             retrieved_categories.append(retrieved_categories_per_obj)
             p_scores.append(p_scores_per_obj)
+
+            retrieved_image_file_paths = []
 
         return {
             "result_ids": result_ids,
