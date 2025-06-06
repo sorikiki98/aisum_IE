@@ -42,6 +42,8 @@ class AisumDBAdapter:
             detection_segment_ids = detection_result["image_segment_ids"]
             detection_classes = detection_result["detection_classes"]
             detection_coordinates = detection_result["detection_coordinates"]
+            detection_sizes = detection_result["detection_sizes"]
+            detection_centrality = detection_result["detection_centrality"]
 
             if self.model_name != "ensemble":
                 retrieval_result = self.repository.get_retrieval_result_by_name(self.model_name, detection_images,
