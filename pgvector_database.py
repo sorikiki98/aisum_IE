@@ -102,21 +102,21 @@ class PGVectorDB:
         conn = connect_db(config)
         cur = conn.cursor()
 
-        print(f"색인 최적화 시작: {index_name} ...")
+        print(f"Index optimization started: {index_name} ...")
 
         reindex_start = time.time()
         cur.execute(f"REINDEX INDEX {index_name};")
         conn.commit()
         reindex_end = time.time()
         reindex_time = reindex_end - reindex_start
-        print(f"REINDEX 완료! (소요 시간: {reindex_time:.2f}초)")
+        print(f"REINDEX completed! (Elapsed time: {reindex_time:.2f} seconds)")
 
         vacuum_start = time.time()
         cur.execute(f"VACUUM ANALYZE {table_name};")
         conn.commit()
         vacuum_end = time.time()
         vacuum_time = vacuum_end - vacuum_start
-        print(f"✅ VACUUM ANALYZE 완료! (소요 시간: {vacuum_time:.2f}초)")
+        print(f"✅ VACUUM ANALYZE completed! (Elapsed time: {vacuum_time:.2f} seconds)")
 
         cur.close()
         conn.close()
@@ -227,16 +227,19 @@ class PGVectorDB:
                 au_id INTEGER,
                 p_key VARCHAR(128),
                 p_category VARCHAR(64),
-                p_score FLOAT,
+                similarity FLOAT,
                 category VARCHAR(128),
-                bbox VARCHAR(128)
+                bbox VARCHAR(128),
+                bbox_size FLOAT,
+                bbox_centrality FLOAT,
+                p_score FLOAT
             );
         """)
         conn.commit()
         cur.close()
         conn.close()
 
-    def insert_search_results(self, segment_id, result_ids, similarities, category, bbox):
+    def insert_search_results(self, segment_id, result_ids, similarities, category, bbox, bbox_size, bbox_centrality):
         table_name = "search_results"
         config = self.config
         conn = connect_db(config)
@@ -272,12 +275,12 @@ class PGVectorDB:
                 query_id_db = get_base_query_id(segment_id)
                 model_name = self.image_embedding_model_name
                 query = f"""
-                    INSERT INTO {table_name} (ymdh, model_name, query_id, category, bbox, p_key, p_category, p_score)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO {table_name} (ymdh, model_name, query_id, category, p_key, p_category, similarity, bbox, bbox_size, bbox_centrality)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 cur.execute(query,
-                            (ymdh, model_name, query_id_db, category, str(bbox), p_key, p_category,
-                             float(similarity)))
+                            (ymdh, model_name, query_id_db, category, p_key, p_category,
+                             float(similarity), str(bbox), bbox_size, bbox_centrality))
             conn.commit()
         except Exception as e:
             print(f"Error inserting search results: {e}")
@@ -301,6 +304,28 @@ class PGVectorDB:
             conn.commit()
         except Exception as e:
             print(f"Error updating search results columns: {e}")
+            conn.rollback()
+        finally:
+            cur.close()
+            conn.close()
+            
+    def update_p_score_column(self):
+        table_name = "search_results"
+        config = self.config
+        conn = connect_db(config)
+        cur = conn.cursor()
+        try:
+            # p_score = bbox_size * bbox_centrality * similarity
+            query = f"""
+                UPDATE {table_name}
+                SET p_score = bbox_size * bbox_centrality * similarity
+                WHERE bbox_size IS NOT NULL AND bbox_centrality IS NOT NULL AND similarity IS NOT NULL
+            """
+            cur.execute(query)
+            conn.commit()
+            print("[INFO] p_score column updated successfully.")
+        except Exception as e:
+            print(f"Error updating p_score column: {e}")
             conn.rollback()
         finally:
             cur.close()
@@ -333,7 +358,7 @@ class PGVectorDB:
         cur = conn.cursor()
         try:
             cur.execute("""
-                SELECT model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score
+                SELECT model_name, pu_id, place_id, c_key, au_id, p_key, p_category, similarity, bbox_size, bbox_centrality
                 FROM search_results
                 ORDER BY id
             """)
@@ -373,7 +398,7 @@ class PGVectorDB:
         conn = connect_db(config)
         cur = conn.cursor()
         try:
-            # 1. search_results_top30 테이블 생성 (id SERIAL PRIMARY KEY, 나머지 컬럼 동일)
+            # 1. Create search_results_top30 table (id SERIAL PRIMARY KEY, other columns same)
             cur.execute(f"""
                 CREATE TABLE IF NOT EXISTS {top_table_name} (
                     id SERIAL PRIMARY KEY,
@@ -392,7 +417,7 @@ class PGVectorDB:
                 );
             """)
             conn.commit()
-            # query_id, model_name 목록 추출
+            # Extract list of (model_name, query_id)
             if model_name:
                 cur.execute(f"SELECT DISTINCT model_name, query_id FROM {table_name} WHERE model_name = %s",
                             (model_name,))
@@ -400,7 +425,7 @@ class PGVectorDB:
                 cur.execute(f"SELECT DISTINCT model_name, query_id FROM {table_name}")
             model_query_ids = cur.fetchall()  # [(model_name, query_id), ...]
             for model_name_val, qid in tqdm(model_query_ids, desc="Saving top30 per (model_name, query_id)"):
-                # (model_name, query_id, p_key)별로 p_score가 가장 높은 row만 남기고, 그 중 상위 30개만 추출
+                # For each (model_name, query_id, p_key), keep only the row with the highest p_score, then select top 30
                 cur.execute(f"""
                     INSERT INTO {top_table_name}
                     (ymdh, model_name, query_id, pu_id, place_id, c_key, au_id, p_key, p_category, p_score, category, bbox)
@@ -415,7 +440,7 @@ class PGVectorDB:
                     LIMIT 30
                 """, (model_name_val, qid))
             conn.commit()
-            print(f"[INFO] search_results_top30 테이블에 상위 30개 저장 완료(중복 제거)")
+            print(f"[INFO] Top 30 results per (model_name, query_id) saved to search_results_top30 table (duplicates removed)")
         except Exception as e:
             print(f"Error saving top30 per query_id: {e}")
             conn.rollback()
