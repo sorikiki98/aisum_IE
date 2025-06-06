@@ -46,7 +46,6 @@ class YOLO(ObjectDetectionModel):
         orig_arr = pred.orig_img[:, :, ::-1]
         original_image = Image.fromarray(orig_arr)
         orig_h, orig_w = pred.boxes.orig_shape
-        orig_area = orig_h * orig_w
         cx_orig = orig_w / 2
         cy_orig = orig_h / 2
 
@@ -55,8 +54,7 @@ class YOLO(ObjectDetectionModel):
                                       pred.boxes.conf,
                                       pred.boxes.xyxy):
             xmin, ymin, xmax, ymax = map(int, bbox)
-            area = (xmax - xmin) * (ymax - ymin)
-            area = area / orig_area
+            area = max((xmax - xmin) / orig_w, (ymax - ymin) / orig_h)
             cx_bbox = (xmin + xmax) / 2
             cy_bbox = (ymin + ymax) / 2
             dx = cx_bbox - cx_orig
