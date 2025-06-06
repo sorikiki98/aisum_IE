@@ -53,11 +53,11 @@ class AisumDBAdapter:
                 retrieval_result = self.repository.ensemble(detection_images, detection_ids, detection_classes)
             self.repository.clear_retrieval_results()
 
-            for result_ids, p_scores, segment_id, category, bbox in zip(retrieval_result["result_ids"],
+            for result_ids, p_scores, segment_id, category, bbox, bbox_size, bbox_centrality in zip(retrieval_result["result_ids"],
                                                                         retrieval_result["p_scores"],
                                                                         detection_segment_ids, detection_classes,
-                                                                        detection_coordinates):
-                local_db.insert_search_results(segment_id, result_ids, p_scores, category, bbox)
+                                                                        detection_coordinates, detection_sizes, detection_centrality):
+                local_db.insert_search_results(segment_id, result_ids, p_scores, category, bbox, bbox_size, bbox_centrality)
 
         # 처리된 id 범위 출력
         id_range = local_db.get_search_results_id_range()
@@ -66,10 +66,13 @@ class AisumDBAdapter:
         else:
             print("[INFO] No data in search_results table.")
 
+        # p_score 컬럼 업데이트
+        local_db.update_p_score_column()
+
     def fill_missing_columns_from_aisum_db(self):
         local_db = self.repository.databases.get_db_by_name(self.model_name)
         rows = local_db.get_rows_with_missing_columns()
-        print(f"[INFO] 채워야 할 row 개수: {len(rows)}")
+        print(f"[INFO] missing rows: {len(rows)}")
 
         config = self.config
         conn = connect_db(config)
