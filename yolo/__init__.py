@@ -10,7 +10,7 @@ class YOLO(ObjectDetectionModel):
         super().__init__(model_name, config, indexing)
         self._model = backbone(self.model_cfg["weights"])
         self._num_objects = self.model_cfg["num_objects"]
-        
+
         self._model.eval()
         self._model.to(self.device)
 
@@ -25,14 +25,17 @@ class YOLO(ObjectDetectionModel):
             result = self._get_candidates(pred)
             detection_results.append(result)
 
-        flattened_classes, flattened_coordinates, flattened_images, flattened_original_ids, flattened_segment_ids = \
+        flattened_classes, flattened_coordinates, flattened_images, flattened_original_ids, flattened_segment_ids, \
+            flattened_areas, flattened_centrality = \
             self._flatten_batch_detection_results(detection_results, img_ids)
         return {
             "detection_classes": flattened_classes,
             "detection_coordinates": flattened_coordinates,
             "detection_images": flattened_images,
             "original_image_ids": flattened_original_ids,
-            "image_segment_ids": flattened_segment_ids
+            "image_segment_ids": flattened_segment_ids,
+            "detection_sizes": flattened_areas,
+            "detection_centrality": flattened_centrality
         }
 
     @property
@@ -43,6 +46,9 @@ class YOLO(ObjectDetectionModel):
         orig_arr = pred.orig_img[:, :, ::-1]
         original_image = Image.fromarray(orig_arr)
         orig_h, orig_w = pred.boxes.orig_shape
+        orig_area = orig_h * orig_w
+        cx_orig = orig_w / 2
+        cy_orig = orig_h / 2
 
         candidates = []
         for cls_id, conf, bbox in zip(pred.boxes.cls,
@@ -50,11 +56,20 @@ class YOLO(ObjectDetectionModel):
                                       pred.boxes.xyxy):
             xmin, ymin, xmax, ymax = map(int, bbox)
             area = (xmax - xmin) * (ymax - ymin)
+            area = area / orig_area
+            cx_bbox = (xmin + xmax) / 2
+            cy_bbox = (ymin + ymax) / 2
+            dx = cx_bbox - cx_orig
+            dy = cy_bbox - cy_orig
+            distance = (dx ** 2 + dy ** 2) ** 0.5
+            distance_max = (cx_bbox ** 2 + cy_bbox ** 2) ** 0.5
+            centrality = 1 - (distance / distance_max) ** 3
             candidates.append({
                 "class": pred.names[int(cls_id)],
                 "conf": float(conf),
                 "bbox": (xmin, ymin, xmax, ymax),
                 "area": area,
+                "centrality": centrality,
                 "image": original_image.crop((xmin, ymin, xmax, ymax))
             })
 
@@ -66,9 +81,13 @@ class YOLO(ObjectDetectionModel):
         if len(candidates) > self._num_objects:
             candidates = self._select_topk_by_area(candidates, k=self._num_objects)
 
-        return [["", (0, 0, orig_w, orig_h), original_image]] + [
-            [c["class"], c["bbox"], c["image"]] for c in candidates
-        ]
+        if len(candidates) == 0:
+            return [["", (0, 0, orig_w, orig_h), original_image, 1, 1]]
+
+        else:
+            return [
+                [c["class"], c["bbox"], c["image"], c["area"], c["centrality"]] for c in candidates
+            ]
 
     @staticmethod
     def _flatten_batch_detection_results(detection_results, batch_ids):
@@ -77,10 +96,14 @@ class YOLO(ObjectDetectionModel):
         batch_flattened_original_ids = []
         batch_flattened_segment_ids = []
         batch_flattened_coordinates = []
+        batch_flattened_areas = []
+        batch_flattened_centrality = []
         for result, batch_id in zip(detection_results, batch_ids):
             detected_classes = [obj[0] for obj in result]
             detected_coordinates = [obj[1] for obj in result]
             detected_images = [obj[2] for obj in result]
+            detected_areas = [obj[3] for obj in result]
+            detected_centrality = [obj[4] for obj in result]
             detected_ids = [np.char.add(batch_id, f"_{str(i)}") for i, _ in enumerate(range(len(detected_images)))]
             original_ids = [batch_id for _ in range(len(detected_images))]
 
@@ -89,8 +112,12 @@ class YOLO(ObjectDetectionModel):
             batch_flattened_images.extend(detected_images)
             batch_flattened_original_ids.extend(original_ids)
             batch_flattened_segment_ids.extend(detected_ids)
+            batch_flattened_areas.extend(detected_areas)
+            batch_flattened_centrality.extend(detected_centrality)
+
         return (batch_flattened_classes, batch_flattened_coordinates, batch_flattened_images,
-                batch_flattened_original_ids, batch_flattened_segment_ids)
+                batch_flattened_original_ids, batch_flattened_segment_ids, batch_flattened_areas,
+                batch_flattened_centrality)
 
     # 중복 bounding box 제거 로직
     def _filter_approx_duplicate_bboxes(self, candidates, dif):
