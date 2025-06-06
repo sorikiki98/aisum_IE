@@ -53,13 +53,12 @@ class AisumDBAdapter:
                 retrieval_result = self.repository.ensemble(detection_images, detection_ids, detection_classes)
             self.repository.clear_retrieval_results()
 
-            for result_ids, p_scores, segment_id, category, bbox, bbox_size, bbox_centrality in zip(
-                    retrieval_result["result_ids"],
-                    retrieval_result["p_scores"],
-                    detection_segment_ids, detection_classes,
-                    detection_coordinates, detection_sizes, detection_centrality):
-                local_db.insert_search_results(segment_id, result_ids, p_scores, category, bbox, bbox_size,
-                                               bbox_centrality)
+            for result_ids, similarity, segment_id, category, bbox, bbox_size, bbox_centrality in zip(
+                        retrieval_result["result_ids"],
+                        retrieval_result["similarities"],
+                        detection_segment_ids, detection_classes,
+                        detection_coordinates, detection_sizes, detection_centrality):
+                local_db.insert_search_results(segment_id, result_ids, similarity, category, bbox, bbox_size, bbox_centrality)
 
         # 처리된 id 범위 출력
         id_range = local_db.get_search_results_id_range()
@@ -69,6 +68,7 @@ class AisumDBAdapter:
             print("[INFO] No data in search_results table.")
 
         # p_score 컬럼 업데이트
+        
         local_db.update_p_score_column()
 
     def fill_missing_columns_from_aisum_db(self):
