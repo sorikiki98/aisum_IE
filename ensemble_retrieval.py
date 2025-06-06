@@ -48,8 +48,8 @@ class Ensemble(nn.Module):
                     image_scores[img_id] += similarity * model_weight
                     if img_id not in image_cats:
                         image_cats[img_id] = cat
-            # 점수 기준 상위 30개 이미지 선정
-            top_images = sorted(image_scores.items(), key=lambda x: x[1], reverse=True)[:30]
+            # 점수 기준 상위 10개 이미지 선정
+            top_images = sorted(image_scores.items(), key=lambda x: x[1], reverse=True)[:10]
             top_images_per_obj.append(top_images)
 
         # 앙상블 결과 이미지 저장
