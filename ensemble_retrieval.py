@@ -13,6 +13,7 @@ class Ensemble(nn.Module):
         self.retrieved_image_folder = config["data"]["retrieved_image_folder_path"]
         self.index_image_folder = Path(config["data"]["index_image_folder_path"])
         self.model_name = "ensemble"
+        self.model_weights = list(range(10, 0, -1))
 
     def forward(self):
         first_key, first_value = next(iter(self.retrieval_results.items()))
@@ -24,12 +25,8 @@ class Ensemble(nn.Module):
         for obj_i in range(n_objects):
             # 이미지별 점수 집계
             image_scores = defaultdict(float)
-
             for i, (model_name, result) in enumerate(self.retrieval_results.items()):
-                if i == 0:
-                    model_weight = 0.65
-                else:
-                    model_weight = 0.35
+                model_weights = [w * (0.5 ** i) for w in self.model_weights]
                 result_ids = result["result_ids"][obj_i]
                 # result_paths = result["result_local_paths"][obj_i]
                 result_cats = result["result_categories"][obj_i]
@@ -45,7 +42,7 @@ class Ensemble(nn.Module):
                 '''
                 for rank, (img_id, cat, similarity) in enumerate(
                         zip(result_ids, result_cats, similarities)):
-                    image_scores[img_id] += similarity * model_weight
+                    image_scores[img_id] += model_weights[rank]
                     if img_id not in image_cats:
                         image_cats[img_id] = cat
             # 점수 기준 상위 10개 이미지 선정
