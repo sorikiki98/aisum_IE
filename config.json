@@ -145,7 +145,7 @@
     "yolo": {
       "model_dir": "yolo",
       "model_name": "YOLO",
-      "weights": "/mnt/c/Users/user/PycharmProjects/aisum_IE/yolo/semi_lr1e4_drop04.pt",
+      "weights": "/mnt/c/Users/user/PycharmProjects/aisum_IE/yolo/yolo11x.pt",
       "num_objects": 3
     }
   },
