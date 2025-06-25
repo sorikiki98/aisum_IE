@@ -38,9 +38,11 @@ class PGVectorDB:
             finally:
                 cur.close()
                 conn.close()
-
-        self.image_embedding_model_name = image_embedding_model_name
         self.config = config
+        self.image_embedding_model_name = image_embedding_model_name
+
+    def get_yolo_version(self):
+        return self.config["model"]["yolo"]["version"]
 
     def insert_embeddings(self, ids, img_codes, image_embeddings, cats):
         table_name = f"image_embeddings_{self.image_embedding_model_name}"
@@ -171,6 +173,7 @@ class PGVectorDB:
 
         for idx, (query_id, query_embedding, query_cat) in enumerate(
                 zip(query_ids, query_embeddings, query_categories)):
+            '''
             if query_cat == "":
                 query = select_clause + "ORDER BY distance ASC LIMIT 10;"
                 params = (query_embedding.tolist(),)
@@ -179,6 +182,10 @@ class PGVectorDB:
                 query = select_clause + "WHERE category = %s ORDER BY distance ASC LIMIT 10;"
                 params = (query_embedding.tolist(), query_cat)
                 # label = f"🔍 [카테고리 필터 검색] - Query #{idx + 1}: {query_id}"
+            '''
+            query = select_clause + "ORDER BY distance ASC LIMIT 10;"
+            params = (query_embedding.tolist(),)
+            # label = f"🔎 [전체 검색] - Query #{idx + 1}: {query_id}"
 
             start_time = time.perf_counter()
             cur.execute(query, params)
@@ -266,6 +273,7 @@ class PGVectorDB:
                 return str(result_id)
 
         p_category = get_p_category(segment_id)
+        yolo_version = self.get_yolo_version()
 
         try:
             for result_id, similarity in zip(result_ids, similarities):
@@ -273,7 +281,7 @@ class PGVectorDB:
                 ymdh = int(now.strftime('%Y%m%d%H'))
                 p_key = get_p_key(result_id)
                 query_id_db = get_base_query_id(segment_id)
-                model_name = self.image_embedding_model_name
+                model_name = f"{self.image_embedding_model_name}_yolo{yolo_version}"
                 query = f"""
                     INSERT INTO {table_name} (ymdh, model_name, query_id, category, p_key, p_category, similarity, bbox, bbox_size, bbox_centrality)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -308,7 +316,7 @@ class PGVectorDB:
         finally:
             cur.close()
             conn.close()
-            
+
     def update_p_score_column(self):
         table_name = "search_results"
         config = self.config
@@ -417,10 +425,12 @@ class PGVectorDB:
                 );
             """)
             conn.commit()
+            yolo_version = self.get_yolo_version()
+            model_name_with_yolo_version = f"{model_name}_yolo{yolo_version}"
             # Extract list of (model_name, query_id)
             if model_name:
                 cur.execute(f"SELECT DISTINCT model_name, query_id FROM {table_name} WHERE model_name = %s",
-                            (model_name,))
+                            (model_name_with_yolo_version,))
             else:
                 cur.execute(f"SELECT DISTINCT model_name, query_id FROM {table_name}")
             model_query_ids = cur.fetchall()  # [(model_name, query_id), ...]
@@ -440,7 +450,8 @@ class PGVectorDB:
                     LIMIT 30
                 """, (model_name_val, qid))
             conn.commit()
-            print(f"[INFO] Top 30 results per (model_name, query_id) saved to search_results_top30 table (duplicates removed)")
+            print(
+                f"[INFO] Top 30 results per (model_name, query_id) saved to search_results_top30 table (duplicates removed)")
         except Exception as e:
             print(f"Error saving top30 per query_id: {e}")
             conn.rollback()
@@ -452,6 +463,8 @@ class PGVectorDB:
         config = self.config
         conn = connect_db(config)
         cur = conn.cursor()
+        yolo_version = self.get_yolo_version()
+        model_name_with_yolo_version = f"{model_name}_yolo{yolo_version}"
         try:
             if model_name:
                 cur.execute("""
@@ -459,7 +472,7 @@ class PGVectorDB:
                     FROM search_results_top30
                     WHERE model_name = %s
                     ORDER BY id
-                """, (model_name,))
+                """, (model_name_with_yolo_version,))
             else:
                 cur.execute("""
                     SELECT model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score, category, bbox
