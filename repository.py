@@ -11,13 +11,19 @@ class ModelRepository:
         self._models = {}
         self.config = config
 
+    def get_yolo_version(self):
+        return self.config["model"]["yolo"]["version"]
+
     def get_model_by_name(self, model_name: str):
-        if model_name not in self._models:
+        yolo_version = self.get_yolo_version()
+        model_name_with_yolo_version = f"{model_name}_yolo{yolo_version}"
+        if model_name_with_yolo_version not in self._models:
             self._add_model_by_name(model_name)
-        return self._models[model_name]
+        return self._models[model_name_with_yolo_version]
 
     def _add_model_by_name(self, model_name: str):
         model_cfg = self.config["model"][model_name]
+        yolo_version = self.get_yolo_version()
         module = importlib.import_module(model_cfg["model_dir"])
         class_name = model_cfg["model_name"]
         cls = getattr(module, class_name)
@@ -27,7 +33,8 @@ class ModelRepository:
             model = cls(model_name, self.config)
         else:
             raise TypeError(f"{class_name} does not inherit from ImageEmbeddingModel or ObjectDetectionModel")
-        self._models[model_name] = model
+        model_name_with_yolo_version = f"{model_name}_yolo{yolo_version}"
+        self._models[model_name_with_yolo_version] = model
 
     def clear(self):
         self._models = {}
@@ -38,13 +45,20 @@ class DatabaseRepository:
         self.databases = {}
         self.config = config
 
+    def get_yolo_version(self):
+        return self.config["model"]["yolo"]["version"]
+
     def get_db_by_name(self, model_name: str):
+        yolo_version = self.get_yolo_version()
+        model_name_with_yolo_version = f"{model_name}_yolo{yolo_version}"
         if model_name not in self.databases:
             self._add_db_by_name(model_name)
-        return self.databases[model_name]
+        return self.databases[model_name_with_yolo_version]
 
     def _add_db_by_name(self, model_name: str):
-        self.databases[model_name] = PGVectorDB(model_name, self.config)
+        yolo_version = self.get_yolo_version()
+        model_name_with_yolo_version = f"{model_name}_yolo{yolo_version}"
+        self.databases[model_name_with_yolo_version] = PGVectorDB(model_name, self.config)
 
     def clear(self):
         self.databases = {}
@@ -57,14 +71,19 @@ class ImageRetrievalRepository:
         self.databases = DatabaseRepository(config)
         self.config = config
 
+    def get_yolo_version(self):
+        return self.config["model"]["yolo"]["version"]
+
     def get_retrieval_result_by_name(self, model_name, query_image, query_id, category):
-        if model_name in self._retrieval_results:
-            return self._retrieval_results[model_name]
+        yolo_version = self.get_yolo_version()
+        model_name_with_yolo_version = f"{model_name}_yolo{yolo_version}"
+        if model_name_with_yolo_version in self._retrieval_results:
+            return self._retrieval_results[model_name_with_yolo_version]
         embedding_model = self.models.get_model_by_name(model_name)
         database = self.databases.get_db_by_name(model_name)
         retrieval_model = ImageRetrieval(embedding_model, database, self.config)
-        self._retrieval_results[model_name] = retrieval_model(query_image, query_id, category)
-        return self._retrieval_results[model_name]
+        self._retrieval_results[model_name_with_yolo_version] = retrieval_model(query_image, query_id, category)
+        return self._retrieval_results[model_name_with_yolo_version]
 
     def ensemble(self, query_image, query_id, category):
         ensemble_model_names = self.config["ensemble"].values()

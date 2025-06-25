@@ -24,9 +24,9 @@ class AisumDBAdapter:
         self.config = config
 
     def save_search_results_to_local_db(self):
-        local_db = self.repository.databases.get_db_by_name(self.model_name)
         dataset = QueryDataset("aisum", self.config)
         detection_model = YOLO("yolo", self.config)
+        local_db = self.repository.databases.get_db_by_name(self.model_name)
         batch_size = self.config["model"].get(self.model_name, {}).get("batch_size", 8)
         total_images = len(dataset.query_image_files)
         total_batches = total_images // batch_size + (1 if total_images % batch_size > 0 else 0)
@@ -54,11 +54,12 @@ class AisumDBAdapter:
             self.repository.clear_retrieval_results()
 
             for result_ids, similarity, segment_id, category, bbox, bbox_size, bbox_centrality in zip(
-                        retrieval_result["result_ids"],
-                        retrieval_result["similarities"],
-                        detection_segment_ids, detection_classes,
-                        detection_coordinates, detection_sizes, detection_centrality):
-                local_db.insert_search_results(segment_id, result_ids, similarity, category, bbox, bbox_size, bbox_centrality)
+                    retrieval_result["result_ids"],
+                    retrieval_result["similarities"],
+                    detection_segment_ids, detection_classes,
+                    detection_coordinates, detection_sizes, detection_centrality):
+                local_db.insert_search_results(segment_id, result_ids, similarity, category, bbox, bbox_size,
+                                               bbox_centrality)
 
         # 처리된 id 범위 출력
         id_range = local_db.get_search_results_id_range()
@@ -68,7 +69,7 @@ class AisumDBAdapter:
             print("[INFO] No data in search_results table.")
 
         # p_score 컬럼 업데이트
-        
+
         local_db.update_p_score_column()
 
     def fill_missing_columns_from_aisum_db(self):

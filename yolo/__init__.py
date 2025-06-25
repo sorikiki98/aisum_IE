@@ -10,6 +10,7 @@ class YOLO(ObjectDetectionModel):
         super().__init__(model_name, config, indexing)
         self._model = backbone(self.model_cfg["weights"])
         self._num_objects = self.model_cfg["num_objects"]
+        self._version = self.model_cfg["version"]
 
         self._model.eval()
         self._model.to(self.device)
@@ -41,6 +42,9 @@ class YOLO(ObjectDetectionModel):
     @property
     def model(self):
         return self._model
+
+    def get_version(self):
+        return self._version
 
     def _get_candidates(self, pred):
         orig_arr = pred.orig_img[:, :, ::-1]
