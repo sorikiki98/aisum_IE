@@ -352,25 +352,6 @@ class PGVectorDB:
             cur.close()
             conn.close()
 
-    def get_search_results(self):
-        config = self.config
-        conn = connect_db(config)
-        cur = conn.cursor()
-        try:
-            cur.execute("""
-                SELECT model_name, pu_id, place_id, c_key, au_id, p_key, p_category, similarity, bbox_size, bbox_centrality
-                FROM search_results
-                ORDER BY id
-            """)
-            rows = cur.fetchall()
-            return rows
-        except Exception as e:
-            print(f"Error fetching id range: {e}")
-            return None
-        finally:
-            cur.close()
-            conn.close()
-
     def get_search_results_id_range(self):
         table_name = "search_results"
         config = self.config
@@ -447,6 +428,33 @@ class PGVectorDB:
         finally:
             cur.close()
             conn.close()
+    
+    def get_search_results(self, model_name=None):
+        config = self.config
+        conn = connect_db(config)
+        cur = conn.cursor()
+        try:
+            if model_name:
+                cur.execute("""
+                    SELECT model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score, category, bbox
+                    FROM search_results
+                    WHERE model_name = %s
+                    ORDER BY id
+                """, (model_name,))
+            else:
+                cur.execute("""
+                    SELECT model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score, category, bbox
+                    FROM search_results
+                    ORDER BY id
+                """)
+            rows = cur.fetchall()
+            return rows
+        except Exception as e:
+            print(f"Error fetching id range: {e}")
+            return None
+        finally:
+            cur.close()
+            conn.close()
 
     def get_search_results_30(self, model_name=None):
         config = self.config
@@ -471,6 +479,40 @@ class PGVectorDB:
         except Exception as e:
             print(f"Error fetching search_results_top30: {e}")
             return None
+        finally:
+            cur.close()
+            conn.close()
+
+    def remove_duplicates_from_search_results(self):
+        """
+        search_results 테이블에서 (c_key, p_key, pu_id, au_id, model_name, p_category) 기준으로 similarity가 가장 높은 row만 남기고 나머지는 삭제합니다.
+        """
+        table_name = "search_results"
+        config = self.config
+        conn = connect_db(config)
+        cur = conn.cursor()
+        try:
+            query = f"""
+            WITH ranked AS (
+              SELECT
+                id,
+                ROW_NUMBER() OVER (
+                  PARTITION BY c_key, p_key, pu_id, au_id, model_name, p_category
+                  ORDER BY similarity DESC
+                ) AS rn
+              FROM {table_name}
+            )
+            DELETE FROM {table_name}
+            USING ranked
+            WHERE {table_name}.id = ranked.id
+              AND ranked.rn > 1;
+            """
+            cur.execute(query)
+            conn.commit()
+            print("[INFO] Duplicates removed from search_results.")
+        except Exception as e:
+            print(f"Error removing duplicates: {e}")
+            conn.rollback()
         finally:
             cur.close()
             conn.close()

@@ -100,12 +100,12 @@ class AisumDBAdapter:
         else:
             print("[INFO] No data in search_results table.")
 
-    def copy_to_mysql_db(self):
+    def copy_to_mysql_db_top30(self):
         local_db = self.repository.databases.get_db_by_name(self.model_name)
 
-        # Fetch only top30 results for the specified model_name
         rows = local_db.get_search_results_30(self.model_name)
-        print(f"[INFO] Retrieved {len(rows) if rows else 0} rows (top30) from PostgreSQL")
+        #rows = local_db.get_search_results(self.model_name)
+        print(f"[INFO] Retrieved {len(rows) if rows else 0} rows from PostgreSQL")
 
         config = self.config
         conn = connect_db(config)
@@ -152,18 +152,69 @@ class AisumDBAdapter:
         local_db = self.repository.databases.get_db_by_name(self.model_name)
         local_db.save_top30_per_query_id(model_name)
 
+    def copy_to_mysql_db_all(self):
+        local_db = self.repository.databases.get_db_by_name(self.model_name)
+
+        # 중복 제거
+        local_db.remove_duplicates_from_search_results()
+
+        rows = local_db.get_search_results(self.model_name)
+        print(f"[INFO] Retrieved {len(rows) if rows else 0} rows from PostgreSQL")
+
+        config = self.config
+        conn = connect_db(config)
+        cur = conn.cursor()
+
+        try:
+            now = datetime.now()
+            ymdh = int(now.strftime('%Y%m%d%H'))
+
+            for row in tqdm(rows or [], desc="MySQL Insert (all)"):
+                model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score, category, bbox = row
+
+                query = """
+                    INSERT INTO pm_test_2nd_content_box_list 
+                    (ymdh, model_name, pu_id, place_id, c_key, au_id, p_key, p_category, p_score, category, box)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                cur.execute(query, (
+                    ymdh,
+                    model_name,
+                    pu_id,
+                    place_id,
+                    c_key,
+                    au_id,
+                    p_key,
+                    p_category,
+                    float(p_score) if p_score is not None else None,
+                    category,
+                    bbox
+                ))
+
+            conn.commit()
+
+            print(f"[INFO] Saved {len(rows) if rows else 0} rows (top30) to MySQL")
+
+        except Exception as e:
+            print(f"[ERROR] Error occurred while saving to MySQL: {e}")
+            conn.rollback()
+        finally:
+            cur.close()
+            conn.close()
+
 
 if __name__ == "__main__":
     print("========= MENU =========")
     print("1. Save search results to DB and fill columns")
     print("2. Extract and save top30")
-    print("3. Save data to AISUM DB")
+    print("3. Save data to AISUM DB (top30)")
+    print("4. Save data to AISUM DB (all)")
     print("=========================")
 
     with open("config.json", "r", encoding="utf-8") as f:
         config = json.load(f)
 
-    menu = input("Select task number (1/2/3): ").strip()
+    menu = input("Select task number (1/2/3/4): ").strip()
     model_input = input("Image Embedding Model Name (single model name or 'ensemble'): ").strip()
     if menu == "1":
         if model_input not in config["model"] and model_input != "ensemble":
@@ -178,6 +229,8 @@ if __name__ == "__main__":
         local_db = db_adapter.repository.databases.get_db_by_name(model_input)
         local_db.save_top30_per_query_id(model_name=model_input)
     elif menu == "3":
-        db_adapter.copy_to_mysql_db()
+        db_adapter.copy_to_mysql_db_top30()
+    elif menu == "4":
+        db_adapter.copy_to_mysql_db_all()
     else:
         print("[ERROR] Please enter a valid menu number.")
