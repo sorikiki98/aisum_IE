@@ -8,10 +8,10 @@ from image_embedding_model import ImageEmbeddingModel
 from object_detection_model import ObjectDetectionModel
 import os
 import mysql.connector
+from collections import Counter
 import numpy as np
 
 # 임베딩 실패 시 DB 상태를 'd'로 변경하는 함수
-# -------------------------------------------------------------------
 def update_image_status(image_ids: list, status: str, db_cfg: dict):
     if not image_ids:
         return
@@ -29,7 +29,7 @@ def update_image_status(image_ids: list, status: str, db_cfg: dict):
         if 'conn' in locals() and conn.is_connected():
             cursor.close()
             conn.close()
-# -------------------------------------------------------------------
+
 
 def load_model_from_path(model_name: str, cfg: dict):
     model_cfg = cfg["model"][model_name]
@@ -94,7 +94,6 @@ if __name__ == "__main__":
 
         if not batch_detection_images:
             print(f"Batch {batch_idx}: No detection images, skipping.")
-            update_image_status(batch_original_image_ids, "d", config["database"])
             continue
 
 
@@ -104,9 +103,15 @@ if __name__ == "__main__":
             print(f"Batch {batch_idx}: Empty embeddings, skipping.")
             update_image_status(batch_original_image_ids, "d", config["database"])
             continue
-
-        print(f"DEBUG: Batch {batch_idx} - Embedding array shape: {batch_embeddings_ndarray.shape}")
-
+        
+        #객체별 임베딩 되는지 확인 로그
+        print(f"[Batch {batch_idx}] 원본 이미지 수: {len(batch_ids)}")
+        print(f"[Batch {batch_idx}] 감지된 객체 수: {len(batch_detection_images)}")
+        print(f"[Batch {batch_idx}] 임베딩 shape: {batch_embeddings_ndarray.shape}")
+        print(f"[Batch {batch_idx}] 원본 ID 샘플: {batch_original_image_ids}")
+        
+        print(f"[Batch {batch_idx}] 원본별 객체 감지 분포: {Counter(batch_original_image_ids)}")
+                
         # [주석 처리] 👈 6. PGVectorDB에 저장하는 부분 비활성화
         # database.insert_image_embeddings_into_postgres(
         #      batch_image_segment_ids, batch_original_image_ids,
