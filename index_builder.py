@@ -61,7 +61,9 @@ if __name__ == "__main__":
             continue
 
         batch_embeddings_ndarray = embedding_model(batch_detection_images)
-        database.insert_image_embeddings_into_postgres(
+        database.insert_embeddings(
             batch_image_segment_ids, batch_original_image_ids,
             batch_embeddings_ndarray, batch_detection_classes
         )
+    
+    database.create_index()

@@ -3,7 +3,8 @@ from datetime import datetime
 import psycopg2
 import time
 from tqdm import tqdm
-
+import re
+from psycopg2.extras import execute_values
 
 def connect_db(config):
     try:
@@ -11,33 +12,60 @@ def connect_db(config):
     except Exception as e:
         raise ValueError(f"Error connecting to database: {e}")
 
+def connect_remote_db(config):
+    try:
+        return psycopg2.connect(**config["database"]["postgres2"])
+    except Exception as e:
+        raise ValueError(f"Error connecting to database: {e}")
 
 class PGVectorDB:
+
+    categories1 = [
+        "top, t-shirt, sweatshirt","pants","jacket","skirt","shirt, blouse",
+        "sweater","coat","dress","cardigan","shorts","vest","jumpsuit",
+        "tights, stockings","cape","leg warmer",
+    ]
+    categories2 = [
+        "bag, wallet","shoe","belt","watch","hat","glasses","sock",
+        "headband, head covering, hair accessory","glove","tie","scarf","umbrella","unknown",
+    ]
+
+
     def __init__(self, image_embedding_model_name, config):
         conn = connect_db(config)
+        remote_conn = connect_remote_db(config)
 
         if image_embedding_model_name in config["model"]:
             model_config = config["model"][image_embedding_model_name]
-            table_name = f"image_embeddings_{image_embedding_model_name}"
             num_dimensions = model_config["num_dimension"]
 
             cur = conn.cursor()
+            remote_cur = remote_conn.cursor()
             try:
-                cur.execute(f"""
-                    CREATE TABLE IF NOT EXISTS {table_name} (
-                        id VARCHAR(255) PRIMARY KEY,
-                        code VARCHAR(255),
-                        embedding VECTOR({num_dimensions}),
-                        category VARCHAR(500)
-                    );
-                """)
+                for cat in self.categories1 + self.categories2:
+                    normalized_cat = re.sub(r"[^A-Za-z0-9_]", "_", cat)
+                    table_name = f"image_embeddings_{image_embedding_model_name}_{normalized_cat}"
+                    sql = (f"""
+                        CREATE TABLE IF NOT EXISTS {table_name} (
+                            id VARCHAR(255) PRIMARY KEY,
+                            code VARCHAR(255),
+                            embedding VECTOR({num_dimensions}),
+                            category VARCHAR(500)
+                        );
+                    """)
+                    (cur if cat in self.categories1 else remote_cur).execute(sql)
                 conn.commit()
+                remote_conn.commit()
+
             except Exception as e:
                 print(f"Error creating table: {e}")
                 conn.rollback()
+                remote_conn.rollback()
             finally:
                 cur.close()
                 conn.close()
+                remote_cur.close()
+                remote_conn.close()
         self.config = config
         self.image_embedding_model_name = image_embedding_model_name
 
@@ -45,56 +73,89 @@ class PGVectorDB:
         return self.config["model"]["yolo"]["version"]
 
     def insert_embeddings(self, ids, img_codes, image_embeddings, cats):
-        table_name = f"image_embeddings_{self.image_embedding_model_name}"
+        cat_data = {}
+
+        for id, code, embedding, cat in zip(ids, img_codes, image_embeddings, cats):
+            categories = 'unknown' if cat == '' else cat
+            embedding = embedding.tolist()
+            cat_data.setdefault(cat, []).append((str(id), str(code), embedding, cat))
+        if not cat_data:
+            return
 
         config = self.config
         conn = connect_db(config)
+        remote_conn = connect_remote_db(config)
         cur = conn.cursor()
+        remote_cur = remote_conn.cursor()
+
         try:
-            for id, code, embedding, cat in zip(ids, img_codes, image_embeddings, cats):
-                query = f"""
-                    INSERT INTO {table_name} (id, code, embedding, category)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (id) DO NOTHING;
+            for cat, rows in cat_data.items():
+                if cat in self.categories1:
+                    target_cur, target_conn, table_cat = cur, conn, cat
+                elif cat in self.categories2:
+                    target_cur, target_conn, table_cat = remote_cur, remote_conn, cat
+                else:
+                    target_cur, target_conn, table_cat = remote_cur, remote_conn, "unknown"
+
+                normalized_cat = re.sub(r"[^A-Za-z0-9_]", "_", cat)
+                table_name = f"image_embeddings_{self.image_embedding_model_name}_{normalized_cat}"
+
+                sql = f"""
+                    INSERT INTO {table_name} (id, code, embedding, category) "
+                    VALUES %s 
+                    ON CONFLICT (id) DO NOTHING
                 """
                 embedding = embedding.tolist()
-                cur.execute(query, (str(id), str(code), embedding, cat))
-            conn.commit()
+                execute_values(target_cur, sql, rows, template="(%s,%s,%s,%s)")
+
+            target_conn.commit()
 
         except Exception as e:
             print(f"Error inserting into PostgreSQL: {e}")
             conn.rollback()
+            remote_conn.rollback()
 
         finally:
             cur.close()
             conn.close()
+            remote_cur.close()
+            remote_conn.close()
 
     def create_index(self):
         table_name = f"image_embeddings_{self.image_embedding_model_name}"
 
         config = self.config
-        conn = connect_db(config)
-        cur = conn.cursor()
+        conn, remote_conn = connect_db(config), connect_remote_db(config)
+        cur, remote_cur = conn.cursor(), remote_conn.cursor()
 
         try:
-            cur = conn.cursor()
-            index_query = f"""
-                CREATE INDEX IF NOT EXISTS hnsw_idx_{self.image_embedding_model_name}
-                ON "{table_name}" USING hnsw (embedding vector_cosine_ops)
-                WITH (m = 32, ef_construction = 300);
-            """
-            cur.execute(index_query)
-            conn.commit()
+            for cat in self.categories1 + self.categories2:
+                normalized_cat = re.sub(r"[^A-Za-z0-9_]", "_", cat)
+                table_name = f"image_embeddings_{self.image_embedding_model_name}_{normalized_cat}"
+                index_name = f"hnsw_idx_{self.image_embedding_model_name}_{normalized_cat}"
 
+                target_cur = cur if cat in self.categories1 else remote_cur
+                index_query = f"""
+                    CREATE INDEX IF NOT EXISTS {index_name}
+                    ON "{table_name}" USING hnsw (embedding vector_cosine_ops)
+                    WITH (m = 32, ef_construction = 300);
+                """
+                target_cur.execute(index_query)
+            
+            conn.commit()
+            remote_conn.commit()
         except Exception as e:
             print("Error creating HNSW index:")
             print(index_query)
             print("Error:", e)
             conn.rollback()
-
+            remote_conn.rollback()
+            
         finally:
             cur.close()
             conn.close()
+            remote_cur.close()
+            remote_conn.close()
 
     def optimize_index(self):
         table_name = f"image_embeddings_{self.image_embedding_model_name}"
@@ -149,9 +210,9 @@ class PGVectorDB:
             "indexed_codes": indexed_img_codes
         }
 
-    def insert_image_embeddings_into_postgres(self, batch_ids, batch_img_codes, image_embeddings, batch_cats):
-        self.create_index()
-        self.insert_embeddings(batch_ids, batch_img_codes, image_embeddings, batch_cats)
+    # def insert_image_embeddings_into_postgres(self, batch_ids, batch_img_codes, image_embeddings, batch_cats):
+    #     self.create_index()
+    #     self.insert_embeddings(batch_ids, batch_img_codes, image_embeddings, batch_cats)
 
     def search_similar_vectors(self, query_ids, query_embeddings, query_categories):
         table_name = f"image_embeddings_{self.image_embedding_model_name}"
