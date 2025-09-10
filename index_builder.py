@@ -63,16 +63,16 @@ if __name__ == "__main__":
     if image_embedding_model_name not in config["model"]:
         raise ValueError("Invalid embedding model name.")
     
-    output_dir = "embedding_results"
-    os.makedirs(output_dir, exist_ok=True)
-    print(f"INFO: 임베딩 결과는 '{output_dir}' 폴더에 저장됩니다.")
+    # output_dir = "embedding_results"
+    # os.makedirs(output_dir, exist_ok=True)
+    # print(f"INFO: 임베딩 결과는 '{output_dir}' 폴더에 저장됩니다.")
 
     database = PGVectorDB(image_embedding_model_name, config)
     indexed_codes = database.get_pgvector_info()["indexed_codes"]
 
     dataset = IndexDataset(task_filepath, config)
     dataset.filter_by_status(required_status=2, required_img_dn='E')
-    dataset.truncate_index_images(indexed_codes)
+#    dataset.truncate_index_images(indexed_codes)
 
     detection_model = load_model_from_path("yolo", config)
     embedding_model = load_model_from_path(image_embedding_model_name, config)
