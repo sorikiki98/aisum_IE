@@ -6,12 +6,13 @@ from tqdm import tqdm
 import re
 from psycopg2.extras import execute_values
 
+#서버1 연결(master)
 def connect_db(config):
     try:
         return psycopg2.connect(**config["database"]["postgres"])
     except Exception as e:
         raise ValueError(f"Error connecting to database: {e}")
-
+# 서버2 연결(slave)
 def connect_remote_db(config):
     try:
         return psycopg2.connect(**config["database"]["postgres2"])
@@ -19,18 +20,19 @@ def connect_remote_db(config):
         raise ValueError(f"Error connecting to database: {e}")
 
 class PGVectorDB:
-
+    # 서버1(master)
     categories1 = [
         "top, t-shirt, sweatshirt","pants","jacket","skirt","shirt, blouse",
         "sweater","coat","dress","cardigan","shorts","vest","jumpsuit",
         "tights, stockings","cape","leg warmer",
     ]
+    # 서버2(slave)
     categories2 = [
         "bag, wallet","shoe","belt","watch","hat","glasses","sock",
         "headband, head covering, hair accessory","glove","tie","scarf","umbrella","unknown",
     ]
 
-
+    # 카테고리별 테이블 생성
     def __init__(self, image_embedding_model_name, config):
         conn = connect_db(config)
         remote_conn = connect_remote_db(config)
@@ -73,6 +75,7 @@ class PGVectorDB:
     def get_yolo_version(self):
         return self.config["model"]["yolo"]["version"]
 
+    # 카테고리별 테이블에 insert
     def insert_embeddings(self, ids, img_codes, image_embeddings, cats):
         yolo_version = self.get_yolo_version()
         cat_data = {}
@@ -123,6 +126,7 @@ class PGVectorDB:
             remote_cur.close()
             remote_conn.close()
 
+    # 카테고리별 테이블 색인 생성
     def create_index(self):
         yolo_version = self.get_yolo_version()
 

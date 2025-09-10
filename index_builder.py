@@ -32,7 +32,7 @@ if __name__ == "__main__":
 
     if image_embedding_model_name not in config["model"]:
         raise ValueError("Invalid embedding model name.")
-
+    # Vector_DB 카테고리별 테이블 생성
     database = PGVectorDB(image_embedding_model_name, config)
     indexed_codes = database.get_pgvector_info()["indexed_codes"]
 
@@ -61,9 +61,10 @@ if __name__ == "__main__":
             continue
 
         batch_embeddings_ndarray = embedding_model(batch_detection_images)
+        # vector_DB 카테고리별 테이블 insert
         database.insert_embeddings(
             batch_image_segment_ids, batch_original_image_ids,
             batch_embeddings_ndarray, batch_detection_classes
         )
-    
-    database.create_index()
+    # # vector_DB 카테고리 테이블별 인덱싱(색인 생성)
+    # database.create_index()
