@@ -37,6 +37,7 @@ class PGVectorDB:
 
         if image_embedding_model_name in config["model"]:
             model_config = config["model"][image_embedding_model_name]
+            yolo_version = self.get_yolo_version()
             num_dimensions = model_config["num_dimension"]
 
             cur = conn.cursor()
@@ -44,7 +45,7 @@ class PGVectorDB:
             try:
                 for cat in self.categories1 + self.categories2:
                     normalized_cat = re.sub(r"[^A-Za-z0-9_]", "_", cat)
-                    table_name = f"image_embeddings_{image_embedding_model_name}_{normalized_cat}"
+                    table_name = f"image_embeddings_{image_embedding_model_name}_yolo{yolo_version}_{normalized_cat}"
                     sql = (f"""
                         CREATE TABLE IF NOT EXISTS {table_name} (
                             id VARCHAR(255) PRIMARY KEY,
@@ -73,12 +74,13 @@ class PGVectorDB:
         return self.config["model"]["yolo"]["version"]
 
     def insert_embeddings(self, ids, img_codes, image_embeddings, cats):
+        yolo_version = self.get_yolo_version()
         cat_data = {}
 
         for id, code, embedding, cat in zip(ids, img_codes, image_embeddings, cats):
             categories = 'unknown' if cat == '' else cat
             embedding = embedding.tolist()
-            cat_data.setdefault(cat, []).append((str(id), str(code), embedding, cat))
+            cat_data.setdefault(cat, []).append((str(id), str(code), embedding, categories))
         if not cat_data:
             return
 
@@ -97,18 +99,18 @@ class PGVectorDB:
                 else:
                     target_cur, target_conn, table_cat = remote_cur, remote_conn, "unknown"
 
-                normalized_cat = re.sub(r"[^A-Za-z0-9_]", "_", cat)
-                table_name = f"image_embeddings_{self.image_embedding_model_name}_{normalized_cat}"
+                normalized_cat = re.sub(r"[^A-Za-z0-9_]", "_", table_cat)
+                table_name = f"image_embeddings_{self.image_embedding_model_name}_yolo{yolo_version}_{normalized_cat}"
 
                 sql = f"""
-                    INSERT INTO {table_name} (id, code, embedding, category) "
+                    INSERT INTO {table_name} (id, code, embedding, category) 
                     VALUES %s 
-                    ON CONFLICT (id) DO NOTHING
+                    ON CONFLICT (id) DO NOTHING;
                 """
-                embedding = embedding.tolist()
                 execute_values(target_cur, sql, rows, template="(%s,%s,%s,%s)")
 
-            target_conn.commit()
+            conn.commit()
+            remote_conn.commit()
 
         except Exception as e:
             print(f"Error inserting into PostgreSQL: {e}")
@@ -122,7 +124,7 @@ class PGVectorDB:
             remote_conn.close()
 
     def create_index(self):
-        table_name = f"image_embeddings_{self.image_embedding_model_name}"
+        yolo_version = self.get_yolo_version()
 
         config = self.config
         conn, remote_conn = connect_db(config), connect_remote_db(config)
@@ -131,13 +133,13 @@ class PGVectorDB:
         try:
             for cat in self.categories1 + self.categories2:
                 normalized_cat = re.sub(r"[^A-Za-z0-9_]", "_", cat)
-                table_name = f"image_embeddings_{self.image_embedding_model_name}_{normalized_cat}"
-                index_name = f"hnsw_idx_{self.image_embedding_model_name}_{normalized_cat}"
+                table_name = f"image_embeddings_{self.image_embedding_model_name}_yolo{yolo_version}_{normalized_cat}"
+                index_name = f"hnsw_idx_{self.image_embedding_model_name}_yolo{yolo_version}_{normalized_cat}"
 
                 target_cur = cur if cat in self.categories1 else remote_cur
                 index_query = f"""
                     CREATE INDEX IF NOT EXISTS {index_name}
-                    ON "{table_name}" USING hnsw (embedding vector_cosine_ops)
+                    ON {table_name} USING hnsw (embedding vector_cosine_ops)
                     WITH (m = 32, ef_construction = 300);
                 """
                 target_cur.execute(index_query)
