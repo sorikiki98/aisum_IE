@@ -192,28 +192,68 @@ class PGVectorDB:
 
     def get_pgvector_info(self):
         config = self.config
+        yolo_version = self.get_yolo_version()
         conn = connect_db(config)
+        remote_conn = connect_remote_db(config)
+
         cur = conn.cursor()
-        table_name = f"image_embeddings_{self.image_embedding_model_name}"
+        remote_cur = remote_conn.cursor()
 
-        cur.execute(f"SELECT DISTINCT(code) FROM {table_name}")
-        rows = cur.fetchall()
-        indexed_img_codes = [row[0] for row in rows]
+        total_unique = 0
+        global_min_id = None
+        global_max_id = None
+        all_codes = []
 
-        cur.execute(f"SELECT COUNT(DISTINCT id) FROM {table_name};")
-        unique_id_count = cur.fetchone()[0]
+        for cat in self.categories1 + self.categories2:
+            normalized_cat = re.sub(r"[^A-Za-z0-9_]", "_",  cat)
+            table_name = f"image_embeddings_{self.image_embedding_model_name}_yolo{yolo_version}_{normalized_cat}"
 
-        cur.execute(f"SELECT MIN(id), MAX(id) FROM {table_name};")
-        min_id, max_id = cur.fetchone()
+            if cat in self.categories1:
+                cur.execute(f"SELECT DISTINCT(code) FROM {table_name}")
+
+                rows = cur.fetchall()
+                indexed_img_codes = [row[0] for row in rows]
+
+                cur.execute(f"SELECT COUNT(DISTINCT id) FROM {table_name};")
+                unique_id_count = cur.fetchone()[0]
+
+                cur.execute(f"SELECT MIN(id), MAX(id) FROM {table_name};")
+                min_id, max_id = cur.fetchone()
+
+
+            elif cat in self.categories2:
+                remote_cur.execute(f"SELECT DISTINCT(code) FROM {table_name}")
+
+                rows = remote_cur.fetchall()
+                indexed_img_codes = [row[0] for row in rows]
+
+                remote_cur.execute(f"SELECT COUNT(DISTINCT id) FROM {table_name};")
+                unique_id_count = cur.fetchone()[0]
+
+                remote_cur.execute(f"SELECT MIN(id), MAX(id) FROM {table_name};")
+                min_id, max_id = cur.fetchone()
+
+            total_unique += (unique_id_count or 0)
+            if min_id is not None and (global_min_id is None or min_id < global_min_id):
+                global_min_id = min_id
+            if max_id is not None and (global_max_id is None or max_id > global_max_id):
+                global_max_id = max_id
+            all_codes.extend(indexed_img_codes)
 
         cur.close()
         conn.close()
+        remote_cur.close()
+        remote_conn.close()
+        
+        merged_codes = []
+        for code in all_codes:
+            merged_codes.append(code)
 
         return {
-            "num_of_unique_image_embeddings": unique_id_count,
-            "min_id": min_id,
-            "max_id": max_id,
-            "indexed_codes": indexed_img_codes
+            "num_of_unique_image_embeddings": total_unique,
+            "min_id": global_min_id,
+            "max_id": global_max_id,
+            "indexed_codes": merged_codes
         }
 
     # def insert_image_embeddings_into_postgres(self, batch_ids, batch_img_codes, image_embeddings, batch_cats):
