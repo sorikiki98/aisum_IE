@@ -228,10 +228,10 @@ class PGVectorDB:
                 indexed_img_codes = [row[0] for row in rows]
 
                 remote_cur.execute(f"SELECT COUNT(DISTINCT id) FROM {table_name};")
-                unique_id_count = cur.fetchone()[0]
+                unique_id_count = remote_cur.fetchone()[0]
 
                 remote_cur.execute(f"SELECT MIN(id), MAX(id) FROM {table_name};")
-                min_id, max_id = cur.fetchone()
+                min_id, max_id = remote_cur.fetchone()
 
             total_unique += (unique_id_count or 0)
             if min_id is not None and (global_min_id is None or min_id < global_min_id):
