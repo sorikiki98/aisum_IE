@@ -3,7 +3,6 @@ from datetime import datetime
 import pymysql
 from tqdm import tqdm
 
-from dataset import QueryDataset
 from repository import ImageRetrievalRepository
 from yolo import YOLO
 
@@ -24,6 +23,8 @@ class AisumDBAdapter:
         self.config = config
 
     def save_search_results_to_local_db(self):
+        #순환 참조 일으켜서 필요한 부분에서 import
+        from dataset import QueryDataset
         dataset = QueryDataset("aisum", self.config)
         detection_model = YOLO("yolo", self.config)
         local_db = self.repository.databases.get_db_by_name(self.model_name)

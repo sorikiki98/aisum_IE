@@ -18,12 +18,11 @@ def update_image_status(image_ids: list, status: str, db_cfg: dict):
     try:
         conn = mysql.connector.connect(**db_cfg["mysql"])
         cursor = conn.cursor()
-        update_query = f"UPDATE crawling_list SET img_dn = %s WHERE p_key IN ({','.join(['%s'] * len(image_ids))})"
+        update_query = f"UPDATE product_list SET img_dn = %s WHERE p_key IN ({','.join(['%s'] * len(image_ids))})"
         params = [status] + image_ids
         cursor.execute(update_query, params)
         conn.commit()
     except Exception as e:
-        # print문은 요청에 따라 제거
         pass
     finally:
         if 'conn' in locals() and conn.is_connected():
@@ -53,7 +52,7 @@ if __name__ == "__main__":
 
     if len(sys.argv) < 3:
         print("실행 오류: python index_builder.py [작업파일.txt] [모델이름]")
-        print("예시: python index_builder.py ./tasks/testtask.txt dreamsim")
+        print("예시: python index_builder.py testtask.txt dreamsim")
         sys.exit(1)
     
     task_filepath = sys.argv[1]
@@ -65,14 +64,13 @@ if __name__ == "__main__":
     
     output_dir = "embedding_results"
     os.makedirs(output_dir, exist_ok=True)
-    print(f"INFO: 임베딩 결과는 '{output_dir}' 폴더에 저장됩니다.")
 
-    database = PGVectorDB(image_embedding_model_name, config)
-    indexed_codes = database.get_pgvector_info()["indexed_codes"]
+    #database = PGVectorDB(image_embedding_model_name, config)
+    #indexed_codes = database.get_pgvector_info()["indexed_codes"]
 
     dataset = IndexDataset(task_filepath, config)
     dataset.filter_by_status(required_status=2, required_img_dn='E')
-    dataset.truncate_index_images(indexed_codes)
+    #dataset.truncate_index_images(indexed_codes)
 
     detection_model = load_model_from_path("yolo", config)
     embedding_model = load_model_from_path(image_embedding_model_name, config)
@@ -111,7 +109,23 @@ if __name__ == "__main__":
         print(f"[Batch {batch_idx}] 원본 ID 샘플: {batch_original_image_ids}")
         
         print(f"[Batch {batch_idx}] 원본별 객체 감지 분포: {Counter(batch_original_image_ids)}")
-                
+        
+    #아래는 임베딩 생성 되는지 확인용
+    #--------------------------------------------------------    
+        all_embeddings.append(batch_embeddings_ndarray)
+    
+    if all_embeddings:
+        all_embeddings = np.vstack(all_embeddings)
+        os.makedirs(output_dir, exist_ok=True)
+        out_path = os.path.join(output_dir, "embeddings.npy")
+        np.save(out_path, all_embeddings)
+        print(f"[INFO] 임베딩 저장 완료: {out_path}")
+        print(f"[INFO] 최종 shape: {all_embeddings.shape}")
+    else:
+        print("[WARN] 생성된 임베딩이 없어 저장할 수 없습니다.")
+    #--------------------------------------------------------
+
+            
         # [주석 처리] 👈 6. PGVectorDB에 저장하는 부분 비활성화
         # database.insert_image_embeddings_into_postgres(
         #      batch_image_segment_ids, batch_original_image_ids,
