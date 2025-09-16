@@ -41,10 +41,14 @@ main() {
   NEW_FILES=$(find "$TASK_DIR" -type f -newermt "@$LAST_RUN_TIME")
 
   if [ -n "$NEW_FILES" ]; then
-    TASK_FILE=$(echo "$NEW_FILES" | head -n 1)
-    log "새 파일 감지됨 ($TASK_FILE) → index_builder.py 실행"
-    date +%s > "$LAST_RUN_FILE"
-    python3 "$INDEX_SCRIPT" "$TASK_FILE" "dreamsim" >> "$LOG_DIR/index.log" 2>&1
+    # 찾은 새로운 파일 목록을 하나씩 반복 처리
+    echo "$NEW_FILES" | while read -r TASK_FILE; do
+      log "새 파일 감지됨 ($TASK_FILE) → index_builder.py 실행"
+      python3 "$INDEX_SCRIPT" "$TASK_FILE" "dreamsim" >> "$LOG_DIR/index.log" 2>&1
+    done
+    
+    # 모든 작업이 끝난 후 마지막 실행 시간을 한 번만 기록
+    date +%s > "$LAST_RUN_FILE" 
   else
     log "새 파일 없음 → 실행 안함"
   fi
