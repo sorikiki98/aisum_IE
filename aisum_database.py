@@ -14,6 +14,37 @@ def connect_db(config):
     except Exception as e:
         raise ValueError(f"Error connecting to database: {e}")
 
+def get_image_urls_from_mysql(config, p_keys):
+    # p_key를 이용해 상품 이미지 URL을 MySQL(pm_test_product_list)에서 조회
+    conn = connect_db(config)
+    cur = conn.cursor()
+    
+    try:
+        if not p_keys:
+            return []
+            
+        placeholders = ','.join(['%s'] * len(p_keys))
+        query = f"""
+            SELECT p_key, img_url 
+            FROM piclick.pm_test_product_list 
+            WHERE p_key IN ({placeholders})
+        """
+        cur.execute(query, p_keys)
+        results = cur.fetchall()
+        
+        # p_key -> img_url 매핑 딕셔너리 생성
+        url_map = {row[0]: row[1] for row in results}
+        
+        # 원래 순서대로 URL 리스트 반환
+        urls = [url_map.get(p_key, '') for p_key in p_keys]
+        return urls
+        
+    except Exception as e:
+        print(f"Error fetching image URLs from MySQL: {e}")
+        return [''] * len(p_keys)
+    finally:
+        cur.close()
+        conn.close()
 
 class AisumDBAdapter:
     def __init__(self, model_name, config):
@@ -22,7 +53,8 @@ class AisumDBAdapter:
         self.repository = repository
         self.model_name = model_name
         self.config = config
-        self.category_filter = config["retrieval"]["category_filter"]
+        self.k_per_object = config["retrieval"]["k_per_object"]
+        self.retrieval_mode = config["retrieval"]["category_filter"]
 
     def save_search_results_to_mysql(self):
         dataset = QueryDataset("aisum", self.config)
@@ -158,27 +190,30 @@ class AisumDBAdapter:
                 return '_'.join(parts[:-1])
             else:
                 return str(result_id)
-        
+        def get_retrieval_mode(retrieval_mode, category):
+            if retrieval_mode == "category_retrieval":
+                return f"{retrieval_mode}_{category}"
+            else:
+                return retrieval_mode
+
         p_category = get_p_category(segment_id)
-        #query_id_db = get_base_query_id(segment_id)
         pu_id, c_key = get_puid_ckey(segment_id)
         x1, y1, x2, y2 = bbox if isinstance(bbox, tuple) else (0, 0, 0, 0)
+        retrieval_mode_value = get_retrieval_mode(self.retrieval_mode, category)
         insert_count = 0 ##
         duplicate_count = 0 ##
         try: 
-            # for result_id, similarity, p_score in zip(result_ids, similarities, p_scores):
             for idx, (result_id, similarity, p_score) in enumerate(zip(result_ids, similarities, p_scores)):
                 now = datetime.now()
                 ymdh = int(now.strftime("%Y%m%d%H"))
                 p_key = get_p_key(result_id)
-                #p_key = get_p_key(result_id, segment_id, idx)
                 
                 query = f"""
                     INSERT INTO {table_name}
                     (ymdh, pu_id, c_key, p_key, p_category, p_score,
                     embedding_model_name, detection_model_name,
-                    category, conf, x1, y1, x2, y2)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    category, conf, x1, y1, x2, y2, retrieval_mode)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 try:
                     cur.execute(query, (
@@ -195,7 +230,8 @@ class AisumDBAdapter:
                         int(x1),
                         int(y1),
                         int(x2),
-                        int(y2)
+                        int(y2),
+                        retrieval_mode_value
                     ))
                     insert_count += 1 ##
                 except pymysql.IntegrityError as e:
@@ -326,6 +362,28 @@ class AisumDBAdapter:
         except Exception as e:
             print(f"Error batch updating missing columns: {e}")
             raise
+    
+    @staticmethod
+    def get_image_urls_for_server(config, result_ids):
+        # 쿼리이미지 server에서 사용할 이미지URL 조회
+        retrieved_image_urls = []
+        for result_id_list in result_ids:
+            # p_key 추출
+            p_keys = []
+            for img_id in result_id_list:
+                parts = str(img_id).split('_')
+                if len(parts) > 1:
+                    p_key = '_'.join(parts[:-1])
+                    p_keys.append(p_key)
+                else:
+                    p_keys.append(str(img_id))
+            
+            # MySQL에서 이미지 URL 조회
+            img_urls = get_image_urls_from_mysql(config, p_keys)
+            retrieved_image_urls.append(img_urls)
+        return retrieved_image_urls
+    
+    # --------------------
 
     def save_search_results_to_local_db(self):
         dataset = QueryDataset("aisum", self.config)
