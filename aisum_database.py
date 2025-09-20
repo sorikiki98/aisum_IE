@@ -14,6 +14,45 @@ def connect_db(config):
     except Exception as e:
         raise ValueError(f"Error connecting to database: {e}")
 
+def get_p_key_from_result_id(result_id):
+    """result_id에서 p_key 추출"""
+    parts = str(result_id).split('_')
+    if len(parts) > 1:
+        return '_'.join(parts[:-1])
+    else:
+        return str(result_id)
+
+def deduplicate_results_per_object(result_ids, similarities, p_scores):
+    """객체별로 p_key 기준 중복 제거"""
+    seen_p_keys = {}
+    
+    for idx, (result_id, similarity, p_score) in enumerate(zip(result_ids, similarities, p_scores)):
+        p_key = get_p_key_from_result_id(result_id)
+        
+        # 빈 p_key 필터링
+        if not p_key or p_key.strip() == '':
+            continue
+            
+        if p_key not in seen_p_keys or p_score > seen_p_keys[p_key]['p_score']:
+            seen_p_keys[p_key] = {
+                'result_id': result_id,
+                'similarity': similarity,
+                'p_score': p_score,
+                'idx': idx
+            }
+    
+    # 중복 제거된 결과 반환
+    dedup_result_ids = []
+    dedup_similarities = []
+    dedup_p_scores = []
+    
+    for p_key, data in seen_p_keys.items():
+        dedup_result_ids.append(data['result_id'])
+        dedup_similarities.append(data['similarity'])
+        dedup_p_scores.append(data['p_score'])
+    
+    return dedup_result_ids, dedup_similarities, dedup_p_scores
+
 def get_image_urls_from_mysql(config, p_keys):
     # p_key를 이용해 상품 이미지 URL을 MySQL(pm_test_product_list)에서 조회
     conn = connect_db(config)
@@ -147,10 +186,9 @@ class AisumDBAdapter:
             #print(f"DEBUG: Total items inserted: {total_inserts}") ##
             conn.commit()
             # 실제 삽입 확인
-            cur.execute("SELECT COUNT(*) FROM viscuit.2nd_content_list WHERE ymdh = %s", 
-                    (int(datetime.now().strftime("%Y%m%d%H")),))
-            actual_count = cur.fetchone()[0]
-            print(f"DEBUG: Actual rows in database: {actual_count}")
+            #cur.execute("SELECT COUNT(*) FROM viscuit.2nd_content_list WHERE ymdh = %s", (int(datetime.now().strftime("%Y%m%d%H")),))
+            #actual_count = cur.fetchone()[0]
+            #print(f"DEBUG: Actual rows in database: {actual_count}")
             #---------------------
             self.fill_missing_columns()
 
@@ -184,29 +222,26 @@ class AisumDBAdapter:
                 return pu_id, c_key
             else:
                 return None, None
-        def get_p_key(result_id):
-            parts = str(result_id).split('_')
-            if len(parts) > 1:
-                return '_'.join(parts[:-1])
-            else:
-                return str(result_id)
         def get_retrieval_mode(retrieval_mode, category):
             if retrieval_mode == "category_retrieval":
                 return f"{retrieval_mode}_{category}"
             else:
                 return retrieval_mode
 
+        # 쿼리 객체 1개의 검색 결과 중 p_key 기준으로 중복 제거 (p_score가 높은 것만 유지)
+        dedup_result_ids, dedup_similarities, dedup_p_scores = deduplicate_results_per_object(
+            result_ids, similarities, p_scores)
+
         p_category = get_p_category(segment_id)
         pu_id, c_key = get_puid_ckey(segment_id)
         x1, y1, x2, y2 = bbox if isinstance(bbox, tuple) else (0, 0, 0, 0)
         retrieval_mode_value = get_retrieval_mode(self.retrieval_mode, category)
         insert_count = 0 ##
-        duplicate_count = 0 ##
         try: 
-            for idx, (result_id, similarity, p_score) in enumerate(zip(result_ids, similarities, p_scores)):
+            for result_id, similarity, p_score in zip(dedup_result_ids, dedup_similarities, dedup_p_scores):
+                p_key = get_p_key_from_result_id(result_id)
                 now = datetime.now()
                 ymdh = int(now.strftime("%Y%m%d%H"))
-                p_key = get_p_key(result_id)
                 
                 query = f"""
                     INSERT INTO {table_name}
@@ -233,20 +268,12 @@ class AisumDBAdapter:
                         int(y2),
                         retrieval_mode_value
                     ))
-                    insert_count += 1 ##
-                except pymysql.IntegrityError as e:
-                    if e.args[0] == 1062:  # Duplicate entry error
-                        duplicate_count += 1
-                        print(f"DEBUG: Skipping duplicate entry for p_key: {p_key} (segment: {segment_id})")
-                        continue
-                    else:  # 다른 IntegrityError인 경우 예외 발생
-                        raise
+                    insert_count += 1
+                
                 except Exception as e:
                     print(f"Error inserting individual result: {e}")
                     raise
             
-            if insert_count > 0 or duplicate_count > 0:
-                print(f"DEBUG: Segment {segment_id} - Inserted: {insert_count}, Duplicates skipped: {duplicate_count}")
             #print(f"DEBUG: Successfully inserted {insert_count} rows for {segment_id}") ##
         except Exception as e:
             print(f"Error inserting search results into MySQL: {e}")
@@ -371,12 +398,8 @@ class AisumDBAdapter:
             # p_key 추출
             p_keys = []
             for img_id in result_id_list:
-                parts = str(img_id).split('_')
-                if len(parts) > 1:
-                    p_key = '_'.join(parts[:-1])
-                    p_keys.append(p_key)
-                else:
-                    p_keys.append(str(img_id))
+                p_key = get_p_key_from_result_id(img_id)
+                p_keys.append(p_key)
             
             # MySQL에서 이미지 URL 조회
             img_urls = get_image_urls_from_mysql(config, p_keys)

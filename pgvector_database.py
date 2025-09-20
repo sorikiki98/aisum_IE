@@ -400,7 +400,8 @@ class PGVectorDB:
                 all_results.extend(results)
         return all_results
     '''
-    # --------------------
+
+    '''
     def search_similar_vectors(self, query_ids, query_embeddings, query_categories):
         table_name = f"image_embeddings_{self.image_embedding_model_name}"
         config = self.config
@@ -439,12 +440,12 @@ class PGVectorDB:
             cur.execute(query, params)
             results = cur.fetchall()
             end_time = time.perf_counter()
-            '''
+            """
             print(f"\n{label} Top 10 (by distance)")
             for i, (id_, cat, dist) in enumerate(results):
                 print(f"{i + 1}. ID: {id_}, Cat: {cat}, Distance: {dist:.6f}")
             print(f"⏱️ 검색 소요 시간: {end_time - start_time:.4f}초")
-            '''
+            """
             """
             cur.execute("EXPLAIN ANALYZE " + query, params)
             plan = cur.fetchall()
@@ -646,7 +647,7 @@ class PGVectorDB:
         finally:
             cur.close()
             conn.close()
-    '''
+    
     def save_top30_per_query_id(self, model_name=None):
         table_name = "search_results"
         top_table_name = "search_results_top30"

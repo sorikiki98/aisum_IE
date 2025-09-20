@@ -16,7 +16,7 @@ from dataset import QueryDataset
 from yolo import YOLO
 from repository import ImageRetrievalRepository
 from image_retrieval import ImageRetrieval
-from aisum_database import AisumDBAdapter
+from aisum_database import AisumDBAdapter, get_p_key_from_result_id, deduplicate_results_per_object, get_image_urls_from_mysql
 
 app = FastAPI()
 
@@ -61,7 +61,7 @@ async def search_by_original_image(
             detection_sizes = [1.0]
             detection_centrality = [1.0]
 
-        all_similar_images = []
+        all_similar_images = [] 
         all_p_scores = []
 
         # 탐지된 객체에 대한 검색
@@ -91,22 +91,30 @@ async def search_by_original_image(
             if result.get('result_local_paths') and result['result_local_paths'][0]:
                 similar_images = result['result_local_paths'][0]
                 p_scores = result.get('p_scores', result.get('similarities', []))[0]
-                    
-                all_similar_images.extend(similar_images)
-                all_p_scores.extend(p_scores)
-        # 중복된 결과 제거
-        unique_results = []
-        seen_urls = set()
-        for img_url, dist in zip(all_similar_images, all_p_scores):
-            if img_url not in seen_urls and img_url:
-                seen_urls.add(img_url)
-                unique_results.append((img_url, dist))
-        # unique_results 반환
-        final_similar_images = [result[0] for result in unique_results]
-        final_p_scores = [result[1] for result in unique_results]
+                result_ids = result['result_ids'][0]
+                similarities = result['similarities'][0]
+                
+                # 객체별 중복 제거
+                dedup_result_ids, dedup_similarities, dedup_p_scores = deduplicate_results_per_object(
+                    result_ids, similarities, p_scores
+                )
+                
+                # 중복 제거된 결과로 URL 조회
+                if embedding_model_name == "ensemble" or retrieval_model.dataset_mode == "server":
+                    # p_key 추출 후 URL 조회
+                    p_keys = [get_p_key_from_result_id(rid) for rid in dedup_result_ids]
+                    dedup_similar_images = get_image_urls_from_mysql(config, p_keys)
+                else:
+                    # 로컬 파일 경로의 경우
+                    dedup_similar_images = similar_images[:len(dedup_result_ids)]
+                
+                all_similar_images.extend(dedup_similar_images)
+                all_p_scores.extend(dedup_p_scores)
+
+
         return JSONResponse(content={
-                "similar_images": final_similar_images,
-                "p_scores": final_p_scores
+                "similar_images": all_similar_images,
+                "p_scores": all_p_scores
             })
 
         '''
@@ -213,9 +221,33 @@ async def search_by_bbox(file: UploadFile = File(...),
             )
 
         p_scores = result.get('p_scores', result.get('similarities', []))[0]
+        similar_images = result['result_local_paths'][0] if result['result_local_paths'] else []
+        result_ids = result['result_ids'][0]
+        similarities = result['similarities'][0]
+        
+        # 객체별 중복 제거
+        dedup_result_ids, dedup_similarities, dedup_p_scores = deduplicate_results_per_object(
+            result_ids, similarities, p_scores
+        )
+        
+        # 중복 제거된 결과로 URL 조회
+        if model_name == "ensemble" or retrieval_model.dataset_mode == "server":
+            # p_key 추출 후 URL 조회
+            p_keys = [get_p_key_from_result_id(rid) for rid in dedup_result_ids]
+            dedup_similar_images = get_image_urls_from_mysql(config, p_keys)
+        else:
+            # 로컬 파일 경로의 경우
+            dedup_similar_images = similar_images[:len(dedup_result_ids)]
+        
+        # p_score 기준으로 정렬
+        image_score_pairs = list(zip(dedup_similar_images, dedup_p_scores))
+        image_score_pairs.sort(key=lambda x: x[1], reverse=True) 
+        sorted_images = [pair[0] for pair in image_score_pairs]
+        sorted_p_scores = [pair[1] for pair in image_score_pairs]
+
         return JSONResponse(content={
-            "similar_images": result['result_local_paths'][0] if result['result_local_paths'] else [],
-            "p_scores": p_scores
+            "similar_images": sorted_images,
+            "p_scores": sorted_p_scores
         })
         '''
         if model_name == "ensemble":
