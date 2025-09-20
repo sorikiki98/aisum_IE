@@ -57,19 +57,22 @@ function App() {
         .then((response) => {
           const result = response.data;
           const imagePaths = result.similar_images || [];
-          const distances = result.distances || [];
+          const p_scores = result.p_scores || [];
 
           const fullUrls = imagePaths.map(
-            (path, idx) =>
-              `http://127.0.0.1:8000${path.replace(
-                /\\/g,
-                "/"
-              )}?v=${Date.now()}_${idx}`
-          );
+            (path, idx) =>{
+              // MySQL에서 가져온 URL이 이미 완전한 URL인지 확인
+              if (path.startsWith('http://') || path.startsWith('https://')) {
+                return `${path}?v=${Date.now()}_${idx}`;
+              } else {
+                // 로컬 경로인 경우 (기존 방식)
+                return `http://127.0.0.1:8000${path.replace(/\\/g, "/")}?v=${Date.now()}_${idx}`;
+              }
+          });
 
           results[model] = {
             urls: fullUrls,
-            distances: distances,
+            p_scores: p_scores,
           };
         })
         .catch((error) => {
@@ -86,7 +89,7 @@ function App() {
 
           results[model] = {
             urls: [],
-            distances: [],
+            p_scores: [],
             error: errorMessage,
           };
         });
@@ -109,25 +112,26 @@ function App() {
           console.log(result);
 
           const imagePaths = result.similar_images || [];
-          const distances = result.distances || [];
+          const p_scores = result.p_scores || [];
 
-          if (!imagePaths.length || !distances.length) {
+          if (!imagePaths.length || !p_scores.length) {
             throw new Error("앙상블 검색 결과가 없습니다.");
           }
 
           const fullUrls = imagePaths.map(
-            (path, idx) =>
-              `http://127.0.0.1:8000${path.replace(
-                /\\/g,
-                "/"
-              )}?v=${Date.now()}_${idx}`
-          );
+            (path, idx) =>{
+              if (path.startsWith('http://') || path.startsWith('https://')) {  
+                return `${path}?v=${Date.now()}_${idx}`; 
+              } else {
+                return `http://127.0.0.1:8000${path.replace(/\\/g, "/")}?v=${Date.now()}_${idx}`;
+              }
+          });
 
           setResultsByModel((prev) => ({
             ...prev,
             ensemble: {
               urls: fullUrls,
-              distances: distances,
+              p_scores: p_scores,
             },
           }));
         })
@@ -147,7 +151,7 @@ function App() {
             ...prev,
             ensemble: {
               urls: [],
-              distances: [],
+              p_scores: [],
               error: errorMessage,
             },
           }));
@@ -179,20 +183,23 @@ function App() {
         .then((response) => {
           const result = response.data;
           const imagePaths = result.similar_images || [];
-          const distances = result.distances || [];
+          const p_scores = result.p_scores || [];
 
           const fullUrls = imagePaths.map(
-            (path, idx) =>
-              `http://127.0.0.1:8000${path.replace(
-                /\\/g,
-                "/"
-              )}?v=${Date.now()}_${idx}`
-          );
+            (path, idx) =>{
+              // MySQL에서 가져온 URL이 이미 완전한 URL인지 확인
+              if (path.startsWith('http://') || path.startsWith('https://')) {
+                return `${path}?v=${Date.now()}_${idx}`;
+              } else {
+                // 로컬 경로인 경우 (기존 방식)
+                return `http://127.0.0.1:8000${path.replace(/\\/g, "/")}?v=${Date.now()}_${idx}`;
+              }
+          });
 
 
           results[model] = {
             urls: fullUrls,
-            distances: distances,
+            p_scores: p_scores,
           };
         })
         .catch((error) => {
@@ -209,7 +216,7 @@ function App() {
 
           results[model] = {
             urls: [],
-            distances: [],
+            p_scores: [],
             error: errorMessage,
           };
         });
@@ -238,25 +245,26 @@ function App() {
           console.log(result);
 
           const imagePaths = result.similar_images || [];
-          const distances = result.distances || [];
+          const p_scores = result.p_scores || [];
 
-          if (!imagePaths.length || !distances.length) {
+          if (!imagePaths.length || !p_scores.length) {
             throw new Error("앙상블 검색 결과가 없습니다.");
           }
 
           const fullUrls = imagePaths.map(
-            (path, idx) =>
-              `http://127.0.0.1:8000${path.replace(
-                /\\/g,
-                "/"
-              )}?v=${Date.now()}_${idx}`
-          );
+            (path, idx) =>{
+              if (path.startsWith('http://') || path.startsWith('https://')) {
+                return `${path}?v=${Date.now()}_${idx}`;
+              } else {
+                return `http://127.0.0.1:8000${path.replace(/\\/g, "/")}?v=${Date.now()}_${idx}`;
+              }
+          });
 
           setResultsByModel((prev) => ({
             ...prev,
             ensemble: {
               urls: fullUrls,
-              distances: distances,
+              p_scores: p_scores,
             },
           }));
         })
@@ -276,7 +284,7 @@ function App() {
             ...prev,
             ensemble: {
               urls: [],
-              distances: [],
+              p_scores: [],
               error: errorMessage,
             },
           }));
@@ -459,7 +467,7 @@ function App() {
                         zIndex: 1000 + sortedIdx, // 작은 박스일수록 높은 zIndex
                         pointerEvents: "auto", // 이벤트 받기
                       }}
-                      title={d.class}
+                      title={`${d.class} (${(d.confidence * 100).toFixed(1)}%)`}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.backgroundColor =
                           "rgba(255, 0, 0, 0.3)";
@@ -505,7 +513,7 @@ function App() {
                       <div
                         key={url}
                         style={{
-                          width: "calc(6.5% - 4px)",
+                          width: "calc(10% - 4px)",
                           textAlign: "center",
                           boxSizing: "border-box",
                         }}
@@ -520,6 +528,15 @@ function App() {
                             border: "1px solid #999",
                           }}
                         />
+                        <p
+                          style={{
+                            fontSize: "11px",
+                            margin: "2px 0",
+                            fontWeight: "500",
+                          }}
+                        >
+                          P Score: {resultsByModel["ensemble"].p_scores[index]?.toFixed(4)}
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -550,7 +567,7 @@ function App() {
                         <div
                           key={url}
                           style={{
-                            width: "calc(6.5% - 4px)",
+                            width: "calc(10% - 4px)",
                             textAlign: "center",
                             boxSizing: "border-box",
                           }}
@@ -572,7 +589,7 @@ function App() {
                               fontWeight: "500",
                             }}
                           >
-                            Distance: {data.distances[index]?.toFixed(4)}
+                            P Score: {data.p_scores[index]?.toFixed(4)}
                           </p>
                         </div>
                       ))}

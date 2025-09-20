@@ -27,7 +27,7 @@ class YOLO(ObjectDetectionModel):
             detection_results.append(result)
 
         flattened_classes, flattened_coordinates, flattened_images, flattened_original_ids, flattened_segment_ids, \
-            flattened_areas, flattened_centrality = \
+            flattened_areas, flattened_centrality, flattened_confidences = \
             self._flatten_batch_detection_results(detection_results, img_ids)
         return {
             "detection_classes": flattened_classes,
@@ -36,7 +36,8 @@ class YOLO(ObjectDetectionModel):
             "original_image_ids": flattened_original_ids,
             "image_segment_ids": flattened_segment_ids,
             "detection_sizes": flattened_areas,
-            "detection_centrality": flattened_centrality
+            "detection_centrality": flattened_centrality,
+            "detection_confidences": flattened_confidences
         }
 
     @property
@@ -84,11 +85,11 @@ class YOLO(ObjectDetectionModel):
             candidates = self._select_topk_by_area(candidates, k=self._num_objects)
 
         if len(candidates) == 0:
-            return [["", (0, 0, orig_w, orig_h), original_image, 1, 1]]
+            return [["", (0, 0, orig_w, orig_h), original_image, 1, 1, 0]] # 객체 미탐지시 confidence=0
 
         else:
             return [
-                [c["class"], c["bbox"], c["image"], c["area"], c["centrality"]] for c in candidates
+                [c["class"], c["bbox"], c["image"], c["area"], c["centrality"], c["conf"]] for c in candidates
             ]
 
     @staticmethod
@@ -100,12 +101,14 @@ class YOLO(ObjectDetectionModel):
         batch_flattened_coordinates = []
         batch_flattened_areas = []
         batch_flattened_centrality = []
+        batch_flattened_confidences = []
         for result, batch_id in zip(detection_results, batch_ids):
             detected_classes = [obj[0] for obj in result]
             detected_coordinates = [obj[1] for obj in result]
             detected_images = [obj[2] for obj in result]
             detected_areas = [obj[3] for obj in result]
             detected_centrality = [obj[4] for obj in result]
+            detected_confidences = [obj[5] for obj in result]
             detected_ids = [np.char.add(batch_id, f"_{str(i)}") for i, _ in enumerate(range(len(detected_images)))]
             original_ids = [batch_id for _ in range(len(detected_images))]
 
@@ -116,10 +119,11 @@ class YOLO(ObjectDetectionModel):
             batch_flattened_segment_ids.extend(detected_ids)
             batch_flattened_areas.extend(detected_areas)
             batch_flattened_centrality.extend(detected_centrality)
+            batch_flattened_confidences.extend(detected_confidences)
 
         return (batch_flattened_classes, batch_flattened_coordinates, batch_flattened_images,
                 batch_flattened_original_ids, batch_flattened_segment_ids, batch_flattened_areas,
-                batch_flattened_centrality)
+                batch_flattened_centrality, batch_flattened_confidences)
 
     # 중복 bounding box 제거 로직
     def _filter_approx_duplicate_bboxes(self, candidates, dif):

@@ -51,7 +51,7 @@ class DatabaseRepository:
     def get_db_by_name(self, model_name: str):
         yolo_version = self.get_yolo_version()
         model_name_with_yolo_version = f"{model_name}_yolo{yolo_version}"
-        if model_name not in self.databases:
+        if model_name_with_yolo_version not in self.databases:
             self._add_db_by_name(model_name)
         return self.databases[model_name_with_yolo_version]
 
@@ -74,7 +74,9 @@ class ImageRetrievalRepository:
     def get_yolo_version(self):
         return self.config["model"]["yolo"]["version"]
 
-    def get_retrieval_result_by_name(self, model_name, query_image, query_id, category):
+    def get_retrieval_result_by_name(self, model_name, query_images, query_ids, categories, 
+                                     bbox_sizes=None, bbox_centralities=None):
+        # bbox_sizes, bbox_centralities 추가: p_score update에 사용
         yolo_version = self.get_yolo_version()
         model_name_with_yolo_version = f"{model_name}_yolo{yolo_version}"
         if model_name_with_yolo_version in self._retrieval_results:
@@ -82,14 +84,15 @@ class ImageRetrievalRepository:
         embedding_model = self.models.get_model_by_name(model_name)
         database = self.databases.get_db_by_name(model_name)
         retrieval_model = ImageRetrieval(embedding_model, database, self.config)
-        self._retrieval_results[model_name_with_yolo_version] = retrieval_model(query_image, query_id, category)
+        self._retrieval_results[model_name_with_yolo_version] = retrieval_model(query_images, query_ids, categories, bbox_sizes, bbox_centralities)
         return self._retrieval_results[model_name_with_yolo_version]
 
-    def ensemble(self, query_image, query_id, category):
+    def ensemble(self, query_images, query_ids, categories,
+                 bbox_sizes=None, bbox_centralities=None):
         ensemble_model_names = self.config["ensemble"].values()
         retrieval_results = dict()
         for name in ensemble_model_names:
-            result = self.get_retrieval_result_by_name(name, query_image, query_id, category)
+            result = self.get_retrieval_result_by_name(name, query_images, query_ids, categories, bbox_sizes, bbox_centralities)
             retrieval_results[name] = result
         ensemble = Ensemble(retrieval_results, self.config)
         ensemble_result = ensemble()

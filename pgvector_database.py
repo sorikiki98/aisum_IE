@@ -34,6 +34,12 @@ class PGVectorDB:
 
     # 카테고리별 테이블 생성
     def __init__(self, image_embedding_model_name, config):
+        self.config = config
+        self.image_embedding_model_name = image_embedding_model_name
+        self.yolo_version = self.get_yolo_version()
+        self.k_per_object = config["retrieval"]["k_per_object"]
+        self.category_filter = config["retrieval"]["category_filter"]
+
         conn = connect_db(config)
         remote_conn = connect_remote_db(config)
 
@@ -69,8 +75,6 @@ class PGVectorDB:
                 conn.close()
                 remote_cur.close()
                 remote_conn.close()
-        self.config = config
-        self.image_embedding_model_name = image_embedding_model_name
 
     def get_yolo_version(self):
         return self.config["model"]["yolo"]["version"]
@@ -260,6 +264,144 @@ class PGVectorDB:
     #     self.create_index()
     #     self.insert_embeddings(batch_ids, batch_img_codes, image_embeddings, batch_cats)
 
+    # 카테고리별 테이블 검색
+    def search_similar_vectors_category_table(self, query_ids, query_embeddings, query_categories, bbox_sizes, bbox_centralities):
+        # bbox정보 없으면 1 사용
+        if bbox_sizes is None:
+            bbox_sizes = [1.0] * len(query_ids)
+        if bbox_centralities is None:
+            bbox_centralities = [1.0] * len(query_ids)
+        
+        if self.category_filter == "category_retrieval":  # 카테고리 검색 모드
+            return self.search_by_category(query_ids, query_embeddings, query_categories, bbox_sizes, bbox_centralities)
+        else:  # 전체 검색 모드
+            return self.search_all_categories(query_ids, query_embeddings, bbox_sizes, bbox_centralities)
+
+    def search_by_category(self, query_ids, query_embeddings, query_categories, bbox_sizes, bbox_centralities):
+        # 쿼리에 해당하는 카테고리 테이블에서 검색
+        all_ids = []
+        all_cats = []
+        all_scores = []
+        all_p_scores = []
+
+        for idx, (query_id, query_embedding, query_cat, bbox_size, bbox_centrality) in enumerate(
+            zip(query_ids, query_embeddings, query_categories, bbox_sizes, bbox_centralities)):
+            if query_cat == "":
+                query_cat = "unknown"
+            
+            # Postgre version 결정
+            if query_cat in self.categories1:
+                use_cat1 = True
+            else:
+                use_cat1 = False
+            
+            # 카테고리 테이블에서 검색
+            results = self.search_single_table(use_cat1, query_embedding, query_cat, self.k_per_object)
+
+            # p_score 계산, 정렬
+            for r in results:
+                r['p_score'] = r['similarity'] * bbox_size * bbox_centrality
+            results.sort(key=lambda x: x["p_score"], reverse=True)
+
+            ids = [r["id"] for r in results]
+            cats = [r["category"] for r in results]
+            scores = [r["similarity"] for r in results]
+            p_scores = [r["p_score"] for r in results]
+            all_ids.append(ids)
+            all_cats.append(cats)
+            all_scores.append(scores)
+            all_p_scores.append(p_scores)
+
+        return all_ids, all_cats, all_scores, all_p_scores
+
+    def search_all_categories(self, query_ids, query_embeddings, bbox_sizes, bbox_centralities):
+        # 모든 테이블에서 검색 후 상위 k개 선택
+        all_ids = []
+        all_cats = []
+        all_scores = []
+        all_p_scores = []
+
+        for idx, (query_id, query_embedding, bbox_size, bbox_centrality) in enumerate(
+            zip(query_ids, query_embeddings, bbox_sizes, bbox_centralities)):
+            # 모든 카테고리 테이블에서 검색
+            #all_results = self.parallel_search_all_table(query_embedding, self.k_per_object)
+            all_results = []
+            for category in self.categories1 + self.categories2:
+                use_cat1 = category in self.categories1
+                results = self.search_single_table(use_cat1, query_embedding, category, self.k_per_object)
+                all_results.extend(results)
+            all_results.sort(key=lambda x: x["similarity"], reverse=True)
+            top_k_results = all_results[:self.k_per_object]
+            # p_score 계산, 정렬
+            for r in top_k_results:
+                r["p_score"] = r["similarity"] * bbox_size * bbox_centrality
+            top_k_results.sort(key=lambda x: x["p_score"], reverse=True)
+
+            ids = [r["id"] for r in top_k_results]
+            cats = [r["category"] for r in top_k_results]
+            scores = [r["similarity"] for r in top_k_results]
+            p_scores = [r["p_score"] for r in top_k_results]
+            all_ids.append(ids)
+            all_cats.append(cats)
+            all_scores.append(scores)
+            all_p_scores.append(p_scores)
+
+        return all_ids, all_cats, all_scores, all_p_scores
+
+    def search_single_table(self, use_cat1, query_embedding, category, k):
+        # 단일 테이블(카테고리1개)에서 유사도 기준 k개 검색
+        if use_cat1:
+            conn = connect_db(self.config)
+        else:
+            conn = connect_remote_db(self.config)
+        cur = conn.cursor()
+
+        normalized_cat = re.sub(r"[^A-Za-z0-9_]", "_", category)
+        yolo_version = self.get_yolo_version()
+        table_name = f"image_embeddings_{self.image_embedding_model_name}_yolo{yolo_version}_{normalized_cat}"
+
+        cur.execute(f"SET hnsw.ef_search = 200;")
+        cur.execute(f"SET enable_seqscan = off;")
+        query = f"""
+            SELECT id, category, embedding <=> %s::vector AS distance
+            FROM {table_name}
+            ORDER BY distance ASC
+            LIMIT %s
+        """
+        cur.execute(query, (query_embedding.tolist(), k))
+        results = cur.fetchall()
+
+        search_results = []
+        for row in results:
+                search_results.append({
+                    'id': row[0],
+                    'category': row[1],
+                    'similarity': 1 - row[2],  # distance를 similarity로 변환
+                    'table': table_name
+                })
+        cur.close()
+        conn.close()
+        return search_results
+    '''
+    def parallel_search_all_table(self, query_embedding, k):
+        # 모든 테이블에서 k개 병렬 검색
+        all_categories = self.categories1 + self.categories2
+        all_results = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            futures = []
+            for category in all_categories:
+                use_cat1 = category in self.categories1
+                future = executor.submit(
+                    self.search_single_table, use_cat1, query_embedding, category, k)
+                futures.append((category, future))
+            
+            for category, future in futures:
+                results = future.result(timeout=10)
+                all_results.extend(results)
+        return all_results
+    '''
+
+    '''
     def search_similar_vectors(self, query_ids, query_embeddings, query_categories):
         table_name = f"image_embeddings_{self.image_embedding_model_name}"
         config = self.config
@@ -280,30 +422,30 @@ class PGVectorDB:
 
         for idx, (query_id, query_embedding, query_cat) in enumerate(
                 zip(query_ids, query_embeddings, query_categories)):
-            '''
+            
             if query_cat == "":
-                query = select_clause + "ORDER BY distance ASC LIMIT 10;"
+                query = select_clause + f"ORDER BY distance ASC LIMIT {self.k_per_object};"
                 params = (query_embedding.tolist(),)
                 # label = f"🔎 [전체 검색] - Query #{idx + 1}: {query_id}"
             else:
-                query = select_clause + "WHERE category = %s ORDER BY distance ASC LIMIT 10;"
+                query = select_clause + f"WHERE category = %s ORDER BY distance ASC LIMIT {self.k_per_object};"
                 params = (query_embedding.tolist(), query_cat)
                 # label = f"🔍 [카테고리 필터 검색] - Query #{idx + 1}: {query_id}"
-            '''
-            query = select_clause + "ORDER BY distance ASC LIMIT 10;"
-            params = (query_embedding.tolist(),)
+            
+            # query = select_clause + "ORDER BY distance ASC LIMIT {self.k_per_object};"
+            # params = (query_embedding.tolist(),)
             # label = f"🔎 [전체 검색] - Query #{idx + 1}: {query_id}"
 
             start_time = time.perf_counter()
             cur.execute(query, params)
             results = cur.fetchall()
             end_time = time.perf_counter()
-            '''
+            """
             print(f"\n{label} Top 10 (by distance)")
             for i, (id_, cat, dist) in enumerate(results):
                 print(f"{i + 1}. ID: {id_}, Cat: {cat}, Distance: {dist:.6f}")
             print(f"⏱️ 검색 소요 시간: {end_time - start_time:.4f}초")
-            '''
+            """
             """
             cur.execute("EXPLAIN ANALYZE " + query, params)
             plan = cur.fetchall()
@@ -505,7 +647,7 @@ class PGVectorDB:
         finally:
             cur.close()
             conn.close()
-
+    
     def save_top30_per_query_id(self, model_name=None):
         table_name = "search_results"
         top_table_name = "search_results_top30"
@@ -594,3 +736,4 @@ class PGVectorDB:
         finally:
             cur.close()
             conn.close()
+    '''
