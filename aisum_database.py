@@ -3,6 +3,7 @@ from datetime import datetime
 import pymysql
 from tqdm import tqdm
 
+from dataset import QueryDataset
 from repository import ImageRetrievalRepository
 from yolo import YOLO
 
